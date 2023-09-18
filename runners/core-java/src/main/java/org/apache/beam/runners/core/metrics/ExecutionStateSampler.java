@@ -33,8 +33,12 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.Vi
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.DateTimeUtils.MillisProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** Monitors the execution of one or more execution threads. */
+/**
+ * Monitors the execution of one or more execution threads.
+ */
 public class ExecutionStateSampler {
 
   private final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
@@ -45,7 +49,9 @@ public class ExecutionStateSampler {
       new ExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
   private final MillisProvider clock;
-  @VisibleForTesting volatile long lastSampleTimeMillis;
+  @VisibleForTesting
+  volatile long lastSampleTimeMillis;
+  private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateSampler.class);
 
   private ExecutionStateSampler(MillisProvider clock) {
     this.clock = clock;
@@ -167,11 +173,28 @@ public class ExecutionStateSampler {
     }
   }
 
-  /** Attributing sampling time to trackers. */
+  /**
+   * Attributing sampling time to trackers.
+   */
   @VisibleForTesting
   public void doSampling(long millisSinceLastSample) {
     for (ExecutionStateTracker tracker : activeTrackers) {
       tracker.takeSample(millisSinceLastSample);
     }
+  }
+
+  public Set<ExecutionStateTracker> getActivelyProcessingTrackers() {
+    Set<ExecutionStateTracker> processingTrackers = ConcurrentHashMap.newKeySet();
+    for (ExecutionStateTracker tracker : activeTrackers) {
+      // if (tracker.getCurrentState() == null) {
+      LOG.info("CLAIRE TEST tracker current state is {}", tracker.getCurrentState());
+      // }
+      // if (tracker.getCurrentState().getStateName()
+      //     .equals(ExecutionStateTracker.PROCESS_STATE_NAME)) {
+      processingTrackers.add(tracker);
+      // }
+    }
+    
+    return processingTrackers;
   }
 }

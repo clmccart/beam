@@ -78,14 +78,16 @@ import org.joda.time.format.PeriodFormat;
  * @param <OutputT> the type of the {@link DoFn} (main) output elements
  */
 @SuppressWarnings({
-  "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
-  "nullness",
-  "keyfor"
+    "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
+    "nullness",
+    "keyfor"
 }) // TODO(https://github.com/apache/beam/issues/20497)
 public class SimpleDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, OutputT> {
 
   private final PipelineOptions options;
-  /** The {@link DoFn} being run. */
+  /**
+   * The {@link DoFn} being run.
+   */
   private final DoFn<InputT, OutputT> fn;
 
   /** The {@link DoFnInvoker} being run. */

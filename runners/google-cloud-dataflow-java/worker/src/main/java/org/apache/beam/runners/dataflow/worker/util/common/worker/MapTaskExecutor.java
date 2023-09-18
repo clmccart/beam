@@ -28,9 +28,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** An executor for a map task, defined by a list of Operations. */
+/**
+ * An executor for a map task, defined by a list of Operations.
+ */
 @SuppressWarnings({
-  "nullness" // TODO(https://github.com/apache/beam/issues/20497)
+    "nullness" // TODO(https://github.com/apache/beam/issues/20497)
 })
 public class MapTaskExecutor implements WorkExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(MapTaskExecutor.class);
@@ -67,6 +69,7 @@ public class MapTaskExecutor implements WorkExecutor {
   public void execute() throws Exception {
     LOG.debug("Executing map task");
 
+    // This makes it seem like the execution state tracker tracks for all operations?
     try (Closeable stateCloser = executionStateTracker.activate()) {
       try {
         // Start operations, in reverse-execution-order, so that a

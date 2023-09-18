@@ -134,7 +134,7 @@ public class BatchModeExecutionContext
                 ScopedProfiler.INSTANCE.emptyScope()),
             counterFactory,
             options,
-            "test-work-item-id"),
+            "test-work-item-id", 000L),
         stateRegistry);
   }
 
@@ -247,7 +247,8 @@ public class BatchModeExecutionContext
                 ScopedProfiler.INSTANCE.emptyScope()),
             counterFactory,
             options,
-            workItemId),
+            // Fix this.
+            workItemId, 000L),
         executionStateRegistry);
   }
 

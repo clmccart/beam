@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.dataflow.worker.util.common.worker;
 
+import java.time.Duration;
+
 /**
  * The abstract base class for Operations, which correspond to Instructions in the original MapTask
  * InstructionGraph.
@@ -78,6 +80,7 @@ public abstract class Operation {
   public Operation(OutputReceiver[] receivers, OperationContext context) {
     this.receivers = receivers;
     this.context = context;
+    this.totalProcessingTime = Duration.ZERO;
   }
 
   /** Checks that this operation is not yet started, throwing an exception otherwise. */
@@ -137,7 +140,9 @@ public abstract class Operation {
     }
   }
 
-  /** Aborts this Operation's execution. */
+  /**
+   * Aborts this Operation's execution.
+   */
   public void abort() throws Exception {
     synchronized (initializationStateLock) {
       initializationState = InitializationState.ABORTED;
@@ -152,4 +157,6 @@ public abstract class Operation {
   public OperationContext getContext() {
     return context;
   }
+
+  public Duration totalProcessingTime;
 }

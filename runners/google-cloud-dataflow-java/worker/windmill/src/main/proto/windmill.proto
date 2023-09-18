@@ -58,6 +58,10 @@ message KeyedMessageBundle {
   repeated bytes messages_ids = 3;
 }
 
+message ActiveStepBreakdown {
+  optional string step_name = 3;
+  optional int64 milliseconds_processing = 4;
+}
 message LatencyAttribution {
   enum State {
     UNKNOWN = 0;
@@ -79,6 +83,7 @@ message LatencyAttribution {
   }
   optional State state = 1;
   optional int64 total_duration_millis = 2;
+  repeated ActiveStepBreakdown active_step_breakdown = 3;
 }
 
 message GetWorkStreamTimingInfo {

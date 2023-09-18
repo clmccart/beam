@@ -18,20 +18,35 @@
 package org.apache.beam.runners.dataflow.worker.util.common.worker;
 
 import java.io.Closeable;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** A ParDo mapping function. */
+/**
+ * A ParDo mapping function.
+ */
 public class ParDoOperation extends ReceivingOperation {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParDoOperation.class);
+
   private final ParDoFn fn;
+
+  private LocalDateTime startTime;
+
+  // public Duration totalProcessingTime;
 
   public ParDoOperation(ParDoFn fn, OutputReceiver[] outputReceivers, OperationContext context) {
     super(outputReceivers, context);
     this.fn = fn;
+    this.startTime = LocalDateTime.MIN;
   }
 
   @Override
   public void start() throws Exception {
     try (Closeable scope = context.enterStart()) {
+      startTime = java.time.LocalDateTime.now();
       super.start();
       fn.startBundle(receivers);
     }
@@ -42,6 +57,9 @@ public class ParDoOperation extends ReceivingOperation {
     try (Closeable scope = context.enterProcess()) {
       checkStarted();
       fn.processElement(elem);
+      totalProcessingTime = Duration.between(startTime, java.time.LocalDateTime.now());
+      LOG.info("CLAIRE TEST tpt: {} for op {}",
+          totalProcessingTime.toString(), context.nameContext().userName());
     }
   }
 
@@ -55,6 +73,7 @@ public class ParDoOperation extends ReceivingOperation {
     try (Closeable scope = context.enterFinish()) {
       fn.finishBundle();
       super.finish();
+      // maybe try hiding it on the operation context?
     }
   }
 

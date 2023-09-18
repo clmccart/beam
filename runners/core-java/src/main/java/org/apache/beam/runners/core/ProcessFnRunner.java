@@ -40,7 +40,8 @@ import org.joda.time.Instant;
 @SuppressWarnings({"nullness", "keyfor"}) // TODO(https://github.com/apache/beam/issues/20497)
 public class ProcessFnRunner<InputT, OutputT, RestrictionT>
     implements PushbackSideInputDoFnRunner<
-        KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> {
+    KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> {
+
   private final DoFnRunner<KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> underlying;
   private final Collection<PCollectionView<?>> views;
   private final ReadyCheckingSideInputReader sideInputReader;
