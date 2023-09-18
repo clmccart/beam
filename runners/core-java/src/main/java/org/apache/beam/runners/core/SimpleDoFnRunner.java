@@ -66,6 +66,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.joda.time.format.PeriodFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs a {@link DoFn} by constructing the appropriate contexts and passing them in.
@@ -78,24 +80,32 @@ import org.joda.time.format.PeriodFormat;
  * @param <OutputT> the type of the {@link DoFn} (main) output elements
  */
 @SuppressWarnings({
-  "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
-  "nullness",
-  "keyfor"
+    "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
+    "nullness",
+    "keyfor"
 }) // TODO(https://github.com/apache/beam/issues/20497)
 public class SimpleDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, OutputT> {
 
+  private static final Logger LOG = LoggerFactory.getLogger(SimpleDoFnRunner.class);
+
   private final PipelineOptions options;
-  /** The {@link DoFn} being run. */
+  /**
+   * The {@link DoFn} being run.
+   */
   private final DoFn<InputT, OutputT> fn;
 
-  /** The {@link DoFnInvoker} being run. */
+  /**
+   * The {@link DoFnInvoker} being run.
+   */
   private final DoFnInvoker<InputT, OutputT> invoker;
 
   private final SideInputReader sideInputReader;
   private final OutputManager outputManager;
 
   private final TupleTag<OutputT> mainOutputTag;
-  /** The set of known output tags. */
+  /**
+   * The set of known output tags.
+   */
   private final Set<TupleTag<?>> outputTags;
 
   private final boolean observesWindow;
@@ -180,6 +190,7 @@ public class SimpleDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, Out
 
   @Override
   public void processElement(WindowedValue<InputT> compressedElem) {
+    LOG.info("CLAIRE TEST inside processelement in SimpleDoFnRunner !");
     if (observesWindow) {
       for (WindowedValue<InputT> elem : compressedElem.explodeWindows()) {
         invokeProcessElement(elem);
@@ -208,6 +219,7 @@ public class SimpleDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, Out
   private void invokeProcessElement(WindowedValue<InputT> elem) {
     // This can contain user code. Wrap it in case it throws an exception.
     try {
+      LOG.info("CLAIRE TEST invokeProcesselement !");
       invoker.invokeProcessElement(new DoFnProcessContext(elem));
     } catch (Exception ex) {
       throw wrapUserCodeException(ex);

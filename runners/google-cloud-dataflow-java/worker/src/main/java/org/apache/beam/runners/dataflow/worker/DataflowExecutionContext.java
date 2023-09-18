@@ -244,18 +244,20 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final DataflowOperationContext.DataflowExecutionState otherState;
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
     private final String workItemId;
+    private final Long workToken;
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
         DataflowOperationContext.DataflowExecutionState otherState,
         CounterFactory counterFactory,
         PipelineOptions options,
-        String workItemId) {
+        String workItemId, Long workToken) {
       super(sampler);
       this.elementExecutionTracker =
           DataflowElementExecutionTracker.create(counterFactory, options);
       this.otherState = otherState;
       this.workItemId = workItemId;
+      this.workToken = workToken;
       this.contextActivationObserverRegistry = ContextActivationObserverRegistry.createDefault();
     }
 
@@ -306,6 +308,10 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
     public String getWorkItemId() {
       return this.workItemId;
+    }
+
+    public Long getWorkToken() {
+      return this.workToken;
     }
   }
 }

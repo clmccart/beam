@@ -257,6 +257,8 @@ public class StreamingModeExecutionContext extends DataflowExecutionContext<Step
       WindmillStateCache.ForKey cacheForKey =
           stateCache.forKey(getComputationKey(), getWork().getCacheToken(), getWorkToken());
       for (StepContext stepContext : stepContexts) {
+        LOG.info("CLAIRE TEST stepContext.username: {}, processingTime: {}",
+            stepContext.getNameContext().userName(), processingTime);
         stepContext.start(
             stateReader,
             inputDataWatermark,

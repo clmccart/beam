@@ -32,6 +32,8 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Iterables;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs a {@link SplittableParDoViaKeyedWorkItems.ProcessFn} by constructing the appropriate
@@ -40,10 +42,13 @@ import org.joda.time.Instant;
 @SuppressWarnings({"nullness", "keyfor"}) // TODO(https://github.com/apache/beam/issues/20497)
 public class ProcessFnRunner<InputT, OutputT, RestrictionT>
     implements PushbackSideInputDoFnRunner<
-        KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> {
+    KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> {
+
   private final DoFnRunner<KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> underlying;
   private final Collection<PCollectionView<?>> views;
   private final ReadyCheckingSideInputReader sideInputReader;
+
+  private static final Logger LOG = LoggerFactory.getLogger(ProcessFnRunner.class);
 
   public ProcessFnRunner(
       DoFnRunner<KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT> underlying,
@@ -73,6 +78,7 @@ public class ProcessFnRunner<InputT, OutputT, RestrictionT>
     if (!isReady(window)) {
       return Collections.singletonList(windowedKWI);
     }
+    LOG.info("CLAIRE TEST dofn.process coming from ProcessFnRunner 1");
     underlying.processElement(windowedKWI);
     return Collections.emptyList();
   }

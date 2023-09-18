@@ -156,6 +156,10 @@ public class IntrinsicMapTaskExecutorFactory implements DataflowMapTaskExecutorF
                 instruction.getOriginalName(),
                 instruction.getSystemName(),
                 instruction.getName());
+        LOG.info("CLAIRE TEST nameContext: {}", nameContext);
+        LOG.info("CLAIRE TEST originalName: {}\nusername: {}\nsystemName: {}\nstageName: {}",
+            nameContext.originalName(), nameContext.userName(), nameContext.systemName(),
+            nameContext.stageName());
         try {
           DataflowOperationContext context = executionContext.createOperationContext(nameContext);
           if (instruction.getRead() != null) {
@@ -164,6 +168,7 @@ public class IntrinsicMapTaskExecutorFactory implements DataflowMapTaskExecutorF
           } else if (instruction.getWrite() != null) {
             return createWriteOperation(node, options, sinkFactory, executionContext, context);
           } else if (instruction.getParDo() != null) {
+            // TODO(clairemccarthy): pipe execution tracker here?
             return createParDoOperation(network, node, options, executionContext, context);
           } else if (instruction.getPartialGroupByKey() != null) {
             return createPartialGroupByKeyOperation(

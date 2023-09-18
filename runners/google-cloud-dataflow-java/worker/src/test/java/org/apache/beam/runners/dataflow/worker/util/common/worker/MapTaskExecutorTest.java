@@ -232,7 +232,7 @@ public class MapTaskExecutorTest {
                 NoopProfileScope.NOOP),
             counterSet,
             options,
-            "test-work-item-id");
+            "test-work-item-id", 000L);
     NameContext parDoName = nameForStep("s1");
 
     // Wire a read operation with 3 elements to a ParDoOperation and assert that we count
@@ -287,7 +287,7 @@ public class MapTaskExecutorTest {
                 NoopProfileScope.NOOP),
             new CounterSet(),
             PipelineOptionsFactory.create(),
-            "test-work-item-id");
+            "test-work-item-id", 000L);
     final String o1 = "o1";
     TestOperationContext context1 = createContext(o1, stateTracker);
     final String o2 = "o2";

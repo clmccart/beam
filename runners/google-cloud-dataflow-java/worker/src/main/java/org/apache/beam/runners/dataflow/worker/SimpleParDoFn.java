@@ -282,6 +282,8 @@ public class SimpleParDoFn<InputT, OutputT> implements ParDoFn {
             }
 
             try {
+              LOG.info("CLAIRE TEST dofn.process coming from SimpleParDoFn !");
+              // What do we have available here for wrapping?
               receiver.process(output);
             } catch (RuntimeException | Error e) {
               // Rethrow unchecked exceptions as-is to avoid excessive nesting
@@ -337,7 +339,13 @@ public class SimpleParDoFn<InputT, OutputT> implements ParDoFn {
     }
 
     outputsPerElementTracker.onProcessElement();
+    LOG.info("CLAIRE TEST processElement coming from SimpleParDoFn (we have some context here) !");
+    // What do we have available here for wrapping?
+    LOG.info("CLAIRE TEST processing element for step: {}",
+        operationContext.nameContext().userName());
     fnRunner.processElement(elem);
+    // get execution state tracker?
+    // getMillisSinceLastTransition?
     outputsPerElementTracker.onProcessElementSuccess();
   }
 

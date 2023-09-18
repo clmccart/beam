@@ -129,6 +129,6 @@ public class DataflowExecutionStateTrackerTest {
         new TestDataflowExecutionState(NameContext.forStage("test-stage"), "other"),
         counterSet,
         options,
-        "test-work-item-id");
+        "test-work-item-id", 000L);
   }
 }
