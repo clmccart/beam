@@ -21,15 +21,11 @@ import java.io.Closeable;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A ParDo mapping function.
  */
 public class ParDoOperation extends ReceivingOperation {
-
-  private static final Logger LOG = LoggerFactory.getLogger(ParDoOperation.class);
 
   private final ParDoFn fn;
 

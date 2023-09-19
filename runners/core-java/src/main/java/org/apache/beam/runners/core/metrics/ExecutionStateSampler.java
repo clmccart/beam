@@ -40,18 +40,18 @@ import org.joda.time.DateTimeUtils.MillisProvider;
 public class ExecutionStateSampler {
 
 
-  private final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
+  protected final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 
   private static final ExecutionStateSampler INSTANCE =
       new ExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
-  private final MillisProvider clock;
+  protected final MillisProvider clock;
   @VisibleForTesting
-  volatile long lastSampleTimeMillis;
+  protected volatile long lastSampleTimeMillis;
 
-  private ExecutionStateSampler(MillisProvider clock) {
+  protected ExecutionStateSampler(MillisProvider clock) {
     this.clock = clock;
   }
 
@@ -155,8 +155,10 @@ public class ExecutionStateSampler {
     this.activeTrackers.add(tracker);
   }
 
-  /** Remove the tracker from the sampling set. */
-  void removeTracker(ExecutionStateTracker tracker) {
+  /**
+   * Remove the tracker from the sampling set.
+   */
+  public void removeTracker(ExecutionStateTracker tracker) {
     activeTrackers.remove(tracker);
 
     // Attribute any remaining time since the last sampling while removing the tracker.
@@ -185,3 +187,4 @@ public class ExecutionStateSampler {
     return activeTrackers;
   }
 }
+
