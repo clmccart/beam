@@ -2371,12 +2371,8 @@ public class StreamingDataflowWorker {
             List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
                 sampler,
                 req.getWorkToken(), String.valueOf(req.getKey()));
-            LOG.info("CLAIRE TEST number of trackers for workToken {}: {}", req.getWorkToken(),
-                trackers.size());
             for (DataflowExecutionStateTracker tracker : trackers) {
               DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
-              LOG.info("CLAIRE TEST adding latency attribution from tracker. name: {}, time: {}",
-                  dfState.getStepName().userName(), tracker.getMillisSinceLastTransition());
               // add breakdown
               newLatencyBuilder.addActiveStepBreakdown(
                   ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
@@ -2400,11 +2396,8 @@ public class StreamingDataflowWorker {
       List<DataflowExecutionStateTracker> trackers = new ArrayList<>();
       // Can multiple executionstatetrackers have the same worktoken? doesn't seem like it
       Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
-      LOG.info("CLAIRE TEST num processingTrackers: {}", processingTrackers.size());
       for (ExecutionStateTracker tracker : processingTrackers) {
         DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-        LOG.info("CLAIRE TEST tracker: {}, {}", dfTracker.getWorkToken(),
-            dfTracker.getWorkItemId());
         if (dfTracker.getWorkToken().equals(workToken) && dfTracker.getWorkItemId().equals(key)) {
           trackers.add(dfTracker);
         }

@@ -33,15 +33,12 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.Vi
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.DateTimeUtils.MillisProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Monitors the execution of one or more execution threads.
  */
 public class ExecutionStateSampler {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateSampler.class);
 
   private final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
 
@@ -160,8 +157,6 @@ public class ExecutionStateSampler {
 
   /** Remove the tracker from the sampling set. */
   void removeTracker(ExecutionStateTracker tracker) {
-    LOG.info("CLAIRE TEST tracker.millis since last transition: {}",
-        tracker.getMillisSinceLastTransition());
     activeTrackers.remove(tracker);
 
     // Attribute any remaining time since the last sampling while removing the tracker.

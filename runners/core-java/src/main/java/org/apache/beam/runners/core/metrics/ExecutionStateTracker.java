@@ -29,8 +29,6 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.MoreObjects;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Tracks the current state of a single execution thread.
@@ -41,7 +39,6 @@ import org.slf4j.LoggerFactory;
 })
 public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateTracker.class);
 
   /**
    * This allows determining which {@link ExecutionStateTracker} is managing a specific thread. We
@@ -246,8 +243,6 @@ public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> 
   }
 
   private synchronized void deactivate() {
-    LOG.info("CLAIRE TEST this.millisSinceLastTransition during deactivation: {}",
-        this.millisSinceLastTransition);
     sampler.removeTracker(this);
     Thread thread = this.trackedThread;
     if (thread != null) {

@@ -58,8 +58,6 @@ public class ParDoOperation extends ReceivingOperation {
       checkStarted();
       fn.processElement(elem);
       totalProcessingTime = Duration.between(startTime, java.time.LocalDateTime.now());
-      LOG.info("CLAIRE TEST tpt: {} for op {}",
-          totalProcessingTime.toString(), context.nameContext().userName());
     }
   }
 
