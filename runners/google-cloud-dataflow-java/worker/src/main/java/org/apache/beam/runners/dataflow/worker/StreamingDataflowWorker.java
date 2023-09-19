@@ -984,7 +984,7 @@ public class StreamingDataflowWorker {
                     null,
                     ScopedProfiler.INSTANCE.emptyScope()),
                 stageInfo.deltaCounters,
-                options, computationId,
+                options, workItem.getKey().toString(),
                 workItem.getWorkToken());
         StreamingModeExecutionContext context =
             new StreamingModeExecutionContext(
@@ -2370,10 +2370,9 @@ public class StreamingDataflowWorker {
             // Refactor.
             List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
                 sampler,
-                req.getWorkToken());
-            if (trackers.size() > 0) {
-              LOG.info("CLAIRE TEST found trackers for workToken: {}", trackers);
-            }
+                req.getWorkToken(), String.valueOf(req.getKey()));
+            LOG.info("CLAIRE TEST number of trackers for workToken {}: {}", req.getWorkToken(),
+                trackers.size());
             for (DataflowExecutionStateTracker tracker : trackers) {
               DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
               LOG.info("CLAIRE TEST adding latency attribution from tracker. name: {}, time: {}",
@@ -2397,17 +2396,16 @@ public class StreamingDataflowWorker {
     }
 
     private List<DataflowExecutionStateTracker> getDataflowExecutionStateTrackerForWorkToken(
-        ExecutionStateSampler sampler, Long workToken) {
+        ExecutionStateSampler sampler, Long workToken, String key) {
       List<DataflowExecutionStateTracker> trackers = new ArrayList<>();
-      // Can multiple executionstatetrackers have the same worktoken?
+      // Can multiple executionstatetrackers have the same worktoken? doesn't seem like it
       Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
-      LOG.info("CLAIRE TEST executionstate trackers: {}", processingTrackers);
+      LOG.info("CLAIRE TEST num processingTrackers: {}", processingTrackers.size());
       for (ExecutionStateTracker tracker : processingTrackers) {
         DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-        LOG.info("CLAIRE TEST dfTracker.workid: {} vs workToken: {}", dfTracker.getWorkToken(),
-            workToken);
-        if (dfTracker.getWorkToken().equals(workToken)) {
-          LOG.info("CLAIRE TEST adding tracker for workToken: {}", workToken);
+        LOG.info("CLAIRE TEST tracker: {}, {}", dfTracker.getWorkToken(),
+            dfTracker.getWorkItemId());
+        if (dfTracker.getWorkToken().equals(workToken) && dfTracker.getWorkItemId().equals(key)) {
           trackers.add(dfTracker);
         }
       }

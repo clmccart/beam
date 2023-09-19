@@ -41,6 +41,8 @@ import org.slf4j.LoggerFactory;
  */
 public class ExecutionStateSampler {
 
+  private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateSampler.class);
+
   private final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
@@ -51,7 +53,6 @@ public class ExecutionStateSampler {
   private final MillisProvider clock;
   @VisibleForTesting
   volatile long lastSampleTimeMillis;
-  private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateSampler.class);
 
   private ExecutionStateSampler(MillisProvider clock) {
     this.clock = clock;
@@ -159,6 +160,8 @@ public class ExecutionStateSampler {
 
   /** Remove the tracker from the sampling set. */
   void removeTracker(ExecutionStateTracker tracker) {
+    LOG.info("CLAIRE TEST tracker.millis since last transition: {}",
+        tracker.getMillisSinceLastTransition());
     activeTrackers.remove(tracker);
 
     // Attribute any remaining time since the last sampling while removing the tracker.
@@ -184,17 +187,6 @@ public class ExecutionStateSampler {
   }
 
   public Set<ExecutionStateTracker> getActivelyProcessingTrackers() {
-    Set<ExecutionStateTracker> processingTrackers = ConcurrentHashMap.newKeySet();
-    for (ExecutionStateTracker tracker : activeTrackers) {
-      // if (tracker.getCurrentState() == null) {
-      LOG.info("CLAIRE TEST tracker current state is {}", tracker.getCurrentState());
-      // }
-      // if (tracker.getCurrentState().getStateName()
-      //     .equals(ExecutionStateTracker.PROCESS_STATE_NAME)) {
-      processingTrackers.add(tracker);
-      // }
-    }
-    
-    return processingTrackers;
+    return activeTrackers;
   }
 }

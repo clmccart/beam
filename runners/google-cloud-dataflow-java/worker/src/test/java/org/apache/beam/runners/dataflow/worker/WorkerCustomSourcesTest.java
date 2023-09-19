@@ -586,7 +586,7 @@ public class WorkerCustomSourcesTest {
                     NameContext.forStage("stageName"), "other", null, NoopProfileScope.NOOP),
                 counterSet,
                 PipelineOptionsFactory.create(),
-                "test-work-item-id"),
+                "test-work-item-id", 000L),
             executionStateRegistry,
             Long.MAX_VALUE);
 

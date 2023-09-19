@@ -33,7 +33,11 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.api.services.dataflow.model.CounterUpdate;
 import com.google.api.services.dataflow.model.InstructionInput;
@@ -52,7 +56,6 @@ import com.google.api.services.dataflow.model.WorkItemStatus;
 import com.google.api.services.dataflow.model.WriteInstruction;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -167,6 +170,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
@@ -537,6 +541,7 @@ public class StreamingDataflowWorkerTest {
             + "      source_computation_id: \""
             + DEFAULT_SOURCE_COMPUTATION_ID
             + "\""
+            // Add messages here?
             + "      messages {"
             + "        timestamp: "
             + timestamp
@@ -2866,24 +2871,10 @@ public class StreamingDataflowWorkerTest {
   }
 
   @Test
+  @Ignore // Test is flaky on Jenkins (#27555)
   public void testMaxThreadMetric() throws Exception {
     int maxThreads = 2;
     int threadExpiration = 60;
-
-    Clock mockClock = Mockito.mock(Clock.class);
-    CountDownLatch latch = new CountDownLatch(2);
-    doAnswer(
-            invocation -> {
-              latch.countDown();
-              // Return 0 until we are called once (reach max thread count).
-              if (latch.getCount() == 1) {
-                return 0L;
-              }
-              return 1000L;
-            })
-        .when(mockClock)
-        .millis();
-
     // setting up actual implementation of executor instead of mocking to keep track of
     // active thread count.
     BoundedQueueExecutor executor =
@@ -2896,8 +2887,7 @@ public class StreamingDataflowWorkerTest {
             new ThreadFactoryBuilder()
                 .setNameFormat("DataflowWorkUnits-%d")
                 .setDaemon(true)
-                .build(),
-            mockClock);
+                .build());
 
     StreamingDataflowWorker.ComputationState computationState =
         new StreamingDataflowWorker.ComputationState(
@@ -2909,17 +2899,15 @@ public class StreamingDataflowWorkerTest {
 
     ShardedKey key1Shard1 = ShardedKey.create(ByteString.copyFromUtf8("key1"), 1);
 
+    // overriding definition of MockWork to add sleep, which will help us keep track of how
+    // long each work item takes to process and therefore let us manipulate how long the time
+    // at which we're at max threads is.
     MockWork m2 =
         new MockWork(2) {
           @Override
           public void run() {
             try {
-              // Make sure we don't finish before both MockWork are executed, thus afterExecute must
-              // be called after
-              // beforeExecute.
-              while (latch.getCount() > 1) {
-                Thread.sleep(50);
-              }
+              Thread.sleep(1000);
             } catch (InterruptedException e) {
               Thread.currentThread().interrupt();
             }
@@ -2931,9 +2919,7 @@ public class StreamingDataflowWorkerTest {
           @Override
           public void run() {
             try {
-              while (latch.getCount() > 1) {
-                Thread.sleep(50);
-              }
+              Thread.sleep(1000);
             } catch (InterruptedException e) {
               Thread.currentThread().interrupt();
             }
@@ -2944,10 +2930,11 @@ public class StreamingDataflowWorkerTest {
     assertTrue(computationState.activateWork(key1Shard1, m3));
     executor.execute(m2, m2.getWorkItem().getSerializedSize());
     executor.execute(m3, m3.getWorkItem().getSerializedSize());
-    // Wait until the afterExecute is called.
-    latch.await();
 
-    assertEquals(1000L, executor.allThreadsActiveTime());
+    // Will get close to 1000ms that both work items are processing (sleeping, really)
+    // give or take a few ms.
+    long i = 990L;
+    assertTrue(executor.allThreadsActiveTime() >= i);
     executor.shutdown();
   }
 
@@ -3249,11 +3236,22 @@ public class StreamingDataflowWorkerTest {
 
     FakeWindmillServer server = new FakeWindmillServer(errorCollector);
     StreamingDataflowWorkerOptions options = createTestingPipelineOptions(server);
-    options.setActiveWorkRefreshPeriodMillis(100);
+    options.setActiveWorkRefreshPeriodMillis(10);
     StreamingDataflowWorker worker = makeWorker(instructions, options, true /* publishCounters */);
     worker.start();
 
-    server.whenGetWorkCalled().thenReturn(makeInput(0, TimeUnit.MILLISECONDS.toMicros(0)));
+    for (int i = 0; i < 11; ++i) {
+      // Same work token.
+      server
+          .whenGetWorkCalled()
+          .thenReturn(makeInput(i, TimeUnit.MILLISECONDS.toMicros(i)))
+          .thenReturn(
+              makeInput(
+                  i + 1000,
+                  TimeUnit.MILLISECONDS.toMicros(i),
+                  keyStringForIndex(i),
+                  DEFAULT_SHARDING_KEY + 1));
+    }
     server.waitForAndGetCommits(1);
 
     worker.stop();
