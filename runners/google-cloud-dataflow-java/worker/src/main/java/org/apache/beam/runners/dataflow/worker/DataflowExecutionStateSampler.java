@@ -31,7 +31,10 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   @Override
   public void removeTracker(ExecutionStateTracker tracker) {
     activeTrackers.remove(tracker);
-    LOG.info("CLAIRE TEST tracker class: {}", tracker.getClass());
+    DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+    LOG.info("CLAIRE TEST tracker: \n{}\n{}\n{}\n{}",
+        dfTracker.getStartToFinishProcessingTimeInMillis(), dfTracker.getNumTransitions(),
+        dfTracker.getWorkToken(), dfTracker.getWorkItemId());
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     // // Is the tracker here in state active?

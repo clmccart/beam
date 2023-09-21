@@ -45,7 +45,7 @@ public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> 
    * don't use a ThreadLocal to allow testing the implementation of this class without having to run
    * from multiple threads.
    */
-  private static final Map<Long, ExecutionStateTracker> CURRENT_TRACKERS =
+  protected static final Map<Long, ExecutionStateTracker> CURRENT_TRACKERS =
       new ConcurrentHashMap<>();
 
   private static final long LULL_REPORT_MS = TimeUnit.MINUTES.toMillis(5);
@@ -110,10 +110,13 @@ public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> 
     }
   }
 
-  private final ExecutionStateSampler sampler;
+  protected final ExecutionStateSampler sampler;
 
-  /** The thread being managed by this {@link ExecutionStateTracker}. */
-  private @Nullable Thread trackedThread = null;
+  /**
+   * The thread being managed by this {@link ExecutionStateTracker}.
+   */
+  @Nullable
+  protected Thread trackedThread = null;
 
   /**
    * The current state of the thread managed by this {@link ExecutionStateTracker}.

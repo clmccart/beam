@@ -22,6 +22,7 @@ import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Pr
 import com.google.api.services.dataflow.model.SideInputInfo;
 import java.io.Closeable;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -248,10 +249,12 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
     private final String workItemId;
     private final Long workToken;
+    private long startTime;
+    private long endTime;
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
-        DataflowOperationContext.DataflowExecutionState otherState,
+        DataflowExecutionState otherState,
         CounterFactory counterFactory,
         PipelineOptions options,
         String workItemId, Long workToken) {
@@ -262,13 +265,22 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       this.workItemId = workItemId;
       this.workToken = workToken;
       this.contextActivationObserverRegistry = ContextActivationObserverRegistry.createDefault();
+      this.startTime = 0;
+      // TODO: handle end time correctly. if call getStartToFinish before end is set, throw an error?
+      this.endTime = 0;
+    }
+
+    public long getStartToFinishProcessingTimeInMillis() {
+      return this.endTime - this.startTime;
     }
 
     @Override
     public Closeable activate() {
+      // this.startTime = System.currentTimeMillis();
       Closer closer = Closer.create();
       try {
-        closer.register(super.activate());
+        super.activate();
+        closer.register(this::deactivate);
         for (ContextActivationObserver p :
             contextActivationObserverRegistry.getContextActivationObservers()) {
           closer.register(p.activate(this));
@@ -286,6 +298,16 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       }
     }
 
+    private synchronized void deactivate() {
+      // this.endTime = System.currentTimeMillis();
+      sampler.removeTracker(this);
+      Thread thread = this.trackedThread;
+      if (thread != null) {
+        CURRENT_TRACKERS.remove(thread.getId());
+      }
+      this.trackedThread = null;
+    }
+
     @Override
     protected void takeSampleOnce(long millisSinceLastSample) {
       elementExecutionTracker.takeSample(millisSinceLastSample);
@@ -298,12 +320,15 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
       if (isDataflowProcessElementState) {
+        // TODO: put this on the elementExecutionTracker below?
+        this.startTime = System.currentTimeMillis();
         elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
           elementExecutionTracker.exit();
+          this.endTime = System.currentTimeMillis();
         }
         baseCloseable.close();
       };

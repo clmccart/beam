@@ -3221,7 +3221,7 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
-      Thread.sleep(1000);
+      Thread.sleep(2000);
       c.output(c.element());
     }
   }
