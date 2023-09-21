@@ -13,7 +13,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  // protected final Map<String, Integer> removedProcessingTimesPerKey = new ConcurrentHashMap();
+  protected final Map<String, Long> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 
@@ -32,9 +32,11 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   public void removeTracker(ExecutionStateTracker tracker) {
     activeTrackers.remove(tracker);
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    LOG.info("CLAIRE TEST tracker: \n{}\n{}\n{}\n{}",
-        dfTracker.getStartToFinishProcessingTimeInMillis(), dfTracker.getNumTransitions(),
-        dfTracker.getWorkToken(), dfTracker.getWorkItemId());
+    if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
+      LOG.info("CLAIRE TEST adding to map");
+      removedProcessingTimesPerKey.put(dfTracker.getWorkItemId(),
+          dfTracker.getStartToFinishProcessingTimeInMillis());
+    }
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     // // Is the tracker here in state active?

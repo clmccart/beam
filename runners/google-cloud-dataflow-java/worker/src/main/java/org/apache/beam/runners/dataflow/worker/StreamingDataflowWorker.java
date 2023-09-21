@@ -2379,6 +2379,14 @@ public class StreamingDataflowWorker {
                       .setMillisecondsProcessing(tracker.getMillisSinceLastTransition())
                       .build());
             }
+            for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
+              // add breakdown
+              newLatencyBuilder.addActiveStepBreakdown(
+                  ActiveStepBreakdown.newBuilder().setStepName("fake-step-name")
+                      .setMillisecondsProcessing(
+                          entry.getValue())
+                      .build());
+            }
             latency = newLatencyBuilder.build();
           }
           newLatencyList.add(latency);
