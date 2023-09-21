@@ -51,6 +51,8 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.io.Closer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.DateTimeUtils.MillisProvider;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Execution context for the Dataflow worker. */
 @SuppressWarnings({
@@ -244,6 +246,8 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
    */
   public static class DataflowExecutionStateTracker extends ExecutionStateTracker {
 
+    private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateTracker.class);
+
     private final ElementExecutionTracker elementExecutionTracker;
     private final DataflowOperationContext.DataflowExecutionState otherState;
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
@@ -251,6 +255,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final Long workToken;
     private long startTime;
     private long endTime;
+    public String stepName;
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
@@ -268,6 +273,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       this.startTime = 0;
       // TODO: handle end time correctly. if call getStartToFinish before end is set, throw an error?
       this.endTime = 0;
+      this.stepName = otherState.getStepName().userName();
     }
 
     public long getStartToFinishProcessingTimeInMillis() {
@@ -320,6 +326,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
       if (isDataflowProcessElementState) {
+        this.stepName = ((DataflowExecutionState) newState).getStepName().userName();
         // TODO: put this on the elementExecutionTracker below?
         this.startTime = System.currentTimeMillis();
         elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
@@ -327,6 +334,8 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
       return () -> {
         if (isDataflowProcessElementState) {
+          LOG.info("CLAIRE TEST exiting state: {}",
+              ((DataflowExecutionState) newState).getStepName().userName());
           elementExecutionTracker.exit();
           this.endTime = System.currentTimeMillis();
         }

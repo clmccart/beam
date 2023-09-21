@@ -60,7 +60,8 @@ message KeyedMessageBundle {
 
 message ActiveStepBreakdown {
   optional string step_name = 3;
-  optional int64 milliseconds_processing = 4;
+  optional int64 current_milliseconds_processing = 4;
+  repeated int64 finished_milliseconds_processing = 5;
 }
 message LatencyAttribution {
   enum State {

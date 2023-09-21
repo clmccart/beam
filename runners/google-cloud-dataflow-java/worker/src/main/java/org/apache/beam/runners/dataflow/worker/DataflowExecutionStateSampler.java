@@ -1,6 +1,9 @@
 package org.apache.beam.runners.dataflow.worker;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
@@ -13,7 +16,19 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  protected final Map<String, Long> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
+  protected Map<String, Set<Long>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
+
+  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey() {
+    return this.removedProcessingTimesPerKey;
+  }
+
+  public void addToRemovedProcessingTimersPerKey(String key, Long val) {
+    Set<Long> currList = this.removedProcessingTimesPerKey.getOrDefault(key,
+        new HashSet<Long>());
+    currList.add(val);
+    this.removedProcessingTimesPerKey.put(key,
+        currList);
+  }
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 
@@ -33,8 +48,9 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     activeTrackers.remove(tracker);
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
-      LOG.info("CLAIRE TEST adding to map");
-      removedProcessingTimesPerKey.put(dfTracker.getWorkItemId(),
+      LOG.info("CLAIRE TEST stepName: {}", dfTracker.stepName);
+      LOG.info("CLAIRE TEST startToFinish: {}", dfTracker.getStartToFinishProcessingTimeInMillis());
+      addToRemovedProcessingTimersPerKey(dfTracker.stepName,
           dfTracker.getStartToFinishProcessingTimeInMillis());
     }
 

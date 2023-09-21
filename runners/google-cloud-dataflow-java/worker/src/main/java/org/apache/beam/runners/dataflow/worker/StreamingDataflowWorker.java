@@ -2376,17 +2376,23 @@ public class StreamingDataflowWorker {
               // add breakdown
               newLatencyBuilder.addActiveStepBreakdown(
                   ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
-                      .setMillisecondsProcessing(tracker.getMillisSinceLastTransition())
+                      .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
+                      .addAllFinishedMillisecondsProcessing(
+                          sampler.getRemovedProcessingTimersPerKey()
+                              .getOrDefault(dfState.getStepName().userName(), new HashSet<>()))
                       .build());
+              LOG.info("CLAIRE TEST finished: {}", sampler.getRemovedProcessingTimersPerKey()
+                  .getOrDefault(dfState.getStepName().userName(), new HashSet<>()));
             }
-            for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
-              // add breakdown
-              newLatencyBuilder.addActiveStepBreakdown(
-                  ActiveStepBreakdown.newBuilder().setStepName("fake-step-name")
-                      .setMillisecondsProcessing(
-                          entry.getValue())
-                      .build());
-            }
+            // for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
+            //   // add breakdown
+            //   // TODO: next thing to do is to bucket those as values by stepname (will need to be done in the tracker i think).
+            //   newLatencyBuilder.addActiveStepBreakdown(
+            //       ActiveStepBreakdown.newBuilder().setStepName(entry.getKey())
+            //           .setMillisecondsProcessing(
+            //               entry.getValue())
+            //           .build());
+            // }
             latency = newLatencyBuilder.build();
           }
           newLatencyList.add(latency);

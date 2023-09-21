@@ -349,7 +349,7 @@ public class StreamingDataflowWorkerTest {
                     Collections.emptyMap()))));
     return new ParallelInstruction()
         .setSystemName(DEFAULT_PARDO_SYSTEM_NAME)
-        .setName(DEFAULT_PARDO_USER_NAME)
+        .setName(String.valueOf(doFn.getClass()))
         .setOriginalName(DEFAULT_PARDO_ORIGINAL_NAME)
         .setParDo(
             new ParDoInstruction()
@@ -1820,6 +1820,8 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) {
+      LOG.info("CLAIRE TEST here");
+
       c.output(c.element());
     }
   }
@@ -3226,11 +3228,22 @@ public class StreamingDataflowWorkerTest {
     }
   }
 
+  private static class SlowDoFnTwo extends DoFn<String, String> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) throws Exception {
+
+      Thread.sleep(1500);
+      c.output(c.element());
+    }
+  }
+
   @Test
   public void testActiveWorkRefresh() throws Exception {
     List<ParallelInstruction> instructions =
         Arrays.asList(
             makeSourceInstruction(StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnTwo(), 0, StringUtf8Coder.of()),
             makeDoFnInstruction(new SlowDoFn(), 0, StringUtf8Coder.of()),
             makeSinkInstruction(StringUtf8Coder.of(), 0));
 
