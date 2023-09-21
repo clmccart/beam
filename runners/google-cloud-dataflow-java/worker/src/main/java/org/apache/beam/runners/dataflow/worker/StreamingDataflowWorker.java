@@ -68,7 +68,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.core.metrics.MetricsLogger;
 import org.apache.beam.runners.dataflow.DataflowRunner;
@@ -554,7 +553,7 @@ public class StreamingDataflowWorker {
     memoryMonitorThread.start();
     dispatchThread.start();
     commitThread.start();
-    ExecutionStateSampler sampler = ExecutionStateSampler.instance();
+    DataflowExecutionStateSampler sampler = DataflowExecutionStateSampler.instance();
     sampler.start();
 
     // Periodically report workers counters and other updates.
@@ -977,7 +976,7 @@ public class StreamingDataflowWorker {
             (InstructionOutputNode) Iterables.getOnlyElement(mapTaskNetwork.successors(readNode));
         DataflowExecutionContext.DataflowExecutionStateTracker executionStateTracker =
             new DataflowExecutionContext.DataflowExecutionStateTracker(
-                ExecutionStateSampler.instance(),
+                DataflowExecutionStateSampler.instance(),
                 stageInfo.executionStateRegistry.getState(
                     NameContext.forStage(mapTask.getStageName()),
                     "other",
@@ -1831,10 +1830,10 @@ public class StreamingDataflowWorker {
    * age threshold is determined by
    * {@link StreamingDataflowWorkerOptions#getActiveWorkRefreshPeriodMillis}.
    */
-  private void refreshActiveWork(ExecutionStateSampler sampler) {
+  private void refreshActiveWork(DataflowExecutionStateSampler sampler) {
     Map<String, List<Windmill.KeyedGetDataRequest>> active = new HashMap<>();
     Instant refreshDeadline =
-            clock.get().minus(Duration.millis(options.getActiveWorkRefreshPeriodMillis()));
+        clock.get().minus(Duration.millis(options.getActiveWorkRefreshPeriodMillis()));
 
     for (Map.Entry<String, ComputationState> entry : computationMap.entrySet()) {
       active.put(entry.getKey(), entry.getValue().getKeysToRefresh(refreshDeadline, sampler));
@@ -2328,7 +2327,8 @@ public class StreamingDataflowWorker {
     /**
      * Adds any work started before the refreshDeadline to the GetDataRequest builder.
      */
-    public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline, ExecutionStateSampler sampler) {
+    public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline,
+        DataflowExecutionStateSampler sampler) {
       List<Windmill.KeyedGetDataRequest> result = new ArrayList<>();
       synchronized (activeWork) {
         for (Map.Entry<ShardedKey, Deque<Work>> entry : activeWork.entrySet()) {
@@ -2357,7 +2357,7 @@ public class StreamingDataflowWorker {
     }
 
     private List<KeyedGetDataRequest> enrichLatenciesFromTrackers(List<KeyedGetDataRequest> result,
-        ExecutionStateSampler sampler) {
+        DataflowExecutionStateSampler sampler) {
       List<KeyedGetDataRequest> newResult = new ArrayList<KeyedGetDataRequest>();
       for (Windmill.KeyedGetDataRequest req : result) {
         List<Windmill.LatencyAttribution> latencyList = req.getLatencyAttributionList();
@@ -2392,7 +2392,7 @@ public class StreamingDataflowWorker {
     }
 
     private List<DataflowExecutionStateTracker> getDataflowExecutionStateTrackerForWorkToken(
-        ExecutionStateSampler sampler, Long workToken, String key) {
+        DataflowExecutionStateSampler sampler, Long workToken, String key) {
       List<DataflowExecutionStateTracker> trackers = new ArrayList<>();
       // Can multiple executionstatetrackers have the same worktoken? doesn't seem like it
       Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
