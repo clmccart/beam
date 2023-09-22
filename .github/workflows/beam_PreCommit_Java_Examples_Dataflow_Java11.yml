@@ -86,7 +86,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.comment.body == 'Run Java_Examples_Dataflow_Java11 PreCommit'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup repository
         uses: ./.github/actions/setup-action
         with:
@@ -110,7 +110,7 @@ jobs:
       - name: run javaExamplesDataflowPrecommit script
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
-          gradle-command: :javaExamplesDataflowPrecommit
+          gradle-command: :runners:google-cloud-dataflow-java:examples:preCommit
           arguments: |
             -PdisableSpotlessCheck=true \
             -PdisableCheckStyle=true \
