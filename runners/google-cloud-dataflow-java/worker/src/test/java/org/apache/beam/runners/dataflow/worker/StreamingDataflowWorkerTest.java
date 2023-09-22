@@ -3243,8 +3243,8 @@ public class StreamingDataflowWorkerTest {
     List<ParallelInstruction> instructions =
         Arrays.asList(
             makeSourceInstruction(StringUtf8Coder.of()),
-            makeDoFnInstruction(new SlowDoFnTwo(), 0, StringUtf8Coder.of()),
             makeDoFnInstruction(new SlowDoFn(), 0, StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnTwo(), 1, StringUtf8Coder.of()),
             makeSinkInstruction(StringUtf8Coder.of(), 0));
 
     FakeWindmillServer server = new FakeWindmillServer(errorCollector);

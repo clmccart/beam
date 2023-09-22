@@ -16,18 +16,23 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  protected Map<String, Set<Long>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
+  protected Map<TupleKey, Map<String, Set<Long>>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
 
-  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey() {
-    return this.removedProcessingTimesPerKey;
+  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey(TupleKey key) {
+    LOG.info("CLAIRE TEST removedProcessingTimers for key {}: {}",
+        key, this.removedProcessingTimesPerKey.get(key));
+    return this.removedProcessingTimesPerKey.get(key);
   }
 
-  public void addToRemovedProcessingTimersPerKey(String key, Long val) {
-    Set<Long> currList = this.removedProcessingTimesPerKey.getOrDefault(key,
+  public void addToRemovedProcessingTimersPerKey(TupleKey key, String stepName, Long val) {
+    Map<String, Set<Long>> stepProcessingTimesForKey = this.removedProcessingTimesPerKey.getOrDefault(
+        key, new ConcurrentHashMap<>());
+    Set<Long> processingTimesForStep = stepProcessingTimesForKey.getOrDefault(stepName,
         new HashSet<Long>());
-    currList.add(val);
+    processingTimesForStep.add(val);
+    stepProcessingTimesForKey.put(stepName, processingTimesForStep);
     this.removedProcessingTimesPerKey.put(key,
-        currList);
+        stepProcessingTimesForKey);
   }
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
@@ -50,7 +55,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
       LOG.info("CLAIRE TEST stepName: {}", dfTracker.stepName);
       LOG.info("CLAIRE TEST startToFinish: {}", dfTracker.getStartToFinishProcessingTimeInMillis());
-      addToRemovedProcessingTimersPerKey(dfTracker.stepName,
+      addToRemovedProcessingTimersPerKey(
+          new TupleKey(dfTracker.getWorkToken(), dfTracker.getWorkItemId()), dfTracker.stepName,
           dfTracker.getStartToFinishProcessingTimeInMillis());
     }
 

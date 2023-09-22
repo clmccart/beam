@@ -2378,10 +2378,13 @@ public class StreamingDataflowWorker {
                   ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
                       .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
                       .addAllFinishedMillisecondsProcessing(
-                          sampler.getRemovedProcessingTimersPerKey()
+                          sampler.getRemovedProcessingTimersPerKey(
+                                  new TupleKey(req.getWorkToken(), String.valueOf(req.getKey())))
                               .getOrDefault(dfState.getStepName().userName(), new HashSet<>()))
                       .build());
-              LOG.info("CLAIRE TEST finished: {}", sampler.getRemovedProcessingTimersPerKey()
+              LOG.info("CLAIRE TEST looking for step: {}", dfState.getStepName().userName());
+              LOG.info("CLAIRE TEST finished: {}", sampler.getRemovedProcessingTimersPerKey(
+                      new TupleKey(req.getWorkToken(), String.valueOf(req.getKey())))
                   .getOrDefault(dfState.getStepName().userName(), new HashSet<>()));
             }
             // for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
