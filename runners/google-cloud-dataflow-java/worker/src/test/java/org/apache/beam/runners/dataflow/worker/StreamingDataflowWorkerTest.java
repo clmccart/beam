@@ -549,6 +549,20 @@ public class StreamingDataflowWorkerTest {
             + index
             + "\""
             + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data2"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data3"
+            + index
+            + "\""
+            + "      }"
             + "    }"
             + "  }"
             + "}",

@@ -1,6 +1,7 @@
 package org.apache.beam.runners.dataflow.worker;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -19,9 +20,14 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   protected Map<TupleKey, Map<String, Set<Long>>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
 
   public Map<String, Set<Long>> getRemovedProcessingTimersPerKey(TupleKey key) {
-    LOG.info("CLAIRE TEST removedProcessingTimers for key {}: {}",
-        key, this.removedProcessingTimesPerKey.get(key));
-    return this.removedProcessingTimesPerKey.get(key);
+
+    String logStr = "";
+    for (TupleKey tk : this.removedProcessingTimesPerKey.keySet()) {
+      String str = String.format("\nworkToken: %s, key: %s", tk.getWorkToken(), tk.getWorkKey());
+      logStr = logStr.concat(str);
+    }
+    LOG.info("CLAIRE TEST removed_processing timer keys: {}", logStr);
+    return this.removedProcessingTimesPerKey.getOrDefault(key, new HashMap<>());
   }
 
   public void addToRemovedProcessingTimersPerKey(TupleKey key, String stepName, Long val) {

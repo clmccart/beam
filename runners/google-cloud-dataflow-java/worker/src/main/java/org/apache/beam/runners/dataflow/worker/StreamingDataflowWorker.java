@@ -2368,24 +2368,37 @@ public class StreamingDataflowWorker {
             LatencyAttribution.Builder newLatencyBuilder = LatencyAttribution.newBuilder()
                 .mergeFrom(latency);
             // Refactor.
+            String key = req.getKey().toString();
             List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
                 sampler,
-                req.getWorkToken(), String.valueOf(req.getKey()));
+                req.getWorkToken(), key);
             for (DataflowExecutionStateTracker tracker : trackers) {
               DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
               // add breakdown
+              Map<String, Set<Long>> foo1 = sampler.getRemovedProcessingTimersPerKey(
+                  new TupleKey(req.getWorkToken(), key));
+              LOG.info("CLAIRE TEST foo1: {}", foo1);
+              Set<Long> foo = foo1.getOrDefault(dfState.getStepName().userName(),
+                  new HashSet<>());
+              LOG.info("CLAIRE TEST foo: {}", foo);
               newLatencyBuilder.addActiveStepBreakdown(
                   ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
                       .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
                       .addAllFinishedMillisecondsProcessing(
-                          sampler.getRemovedProcessingTimersPerKey(
-                                  new TupleKey(req.getWorkToken(), String.valueOf(req.getKey())))
-                              .getOrDefault(dfState.getStepName().userName(), new HashSet<>()))
+                          foo)
                       .build());
-              LOG.info("CLAIRE TEST looking for step: {}", dfState.getStepName().userName());
-              LOG.info("CLAIRE TEST finished: {}", sampler.getRemovedProcessingTimersPerKey(
-                      new TupleKey(req.getWorkToken(), String.valueOf(req.getKey())))
-                  .getOrDefault(dfState.getStepName().userName(), new HashSet<>()));
+              LOG.info("CLAIRE TEST looking for step: {} AND WORKTOKEN: {}, and key: {}",
+                  dfState.getStepName().userName(), req.getWorkToken(), key);
+              Map<String, Set<Long>> removed_by_keys = sampler.getRemovedProcessingTimersPerKey(
+                  new TupleKey(req.getWorkToken(), key));
+              LOG.info("CLAIRE TEST removed_by_keys: {}", removed_by_keys);
+              Set<Long> removed_values = removed_by_keys.getOrDefault(
+                  dfState.getStepName().userName(), new HashSet<>());
+              LOG.info("CLAIRE TEST finished: {}", removed_values);
+              if (removed_values.size() > 0) {
+                LOG.info("CLAIRE TEST YAY!");
+              }
+
             }
             // for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
             //   // add breakdown
