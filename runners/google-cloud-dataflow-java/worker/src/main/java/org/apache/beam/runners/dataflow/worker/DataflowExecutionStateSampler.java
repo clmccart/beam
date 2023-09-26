@@ -17,27 +17,27 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  protected Map<TupleKey, Map<String, Set<Long>>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
+  protected Map<Long, Map<String, Set<Long>>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
 
-  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey(TupleKey key) {
+  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey(Long key) {
 
     String logStr = "";
-    for (TupleKey tk : this.removedProcessingTimesPerKey.keySet()) {
-      String str = String.format("\nworkToken: %s, key: %s", tk.getWorkToken(), tk.getWorkKey());
+    for (Long tk : this.removedProcessingTimesPerKey.keySet()) {
+      String str = String.format("\nworkToken: %s", tk);
       logStr = logStr.concat(str);
     }
     LOG.info("CLAIRE TEST removed_processing timer keys: {}", logStr);
     return this.removedProcessingTimesPerKey.getOrDefault(key, new HashMap<>());
   }
 
-  public void addToRemovedProcessingTimersPerKey(TupleKey key, String stepName, Long val) {
+  public void addToRemovedProcessingTimersPerKey(Long workToken, String stepName, Long val) {
     Map<String, Set<Long>> stepProcessingTimesForKey = this.removedProcessingTimesPerKey.getOrDefault(
-        key, new ConcurrentHashMap<>());
+        workToken, new ConcurrentHashMap<>());
     Set<Long> processingTimesForStep = stepProcessingTimesForKey.getOrDefault(stepName,
         new HashSet<Long>());
     processingTimesForStep.add(val);
     stepProcessingTimesForKey.put(stepName, processingTimesForStep);
-    this.removedProcessingTimesPerKey.put(key,
+    this.removedProcessingTimesPerKey.put(workToken,
         stepProcessingTimesForKey);
   }
 
@@ -62,7 +62,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       LOG.info("CLAIRE TEST stepName: {}", dfTracker.stepName);
       LOG.info("CLAIRE TEST startToFinish: {}", dfTracker.getStartToFinishProcessingTimeInMillis());
       addToRemovedProcessingTimersPerKey(
-          new TupleKey(dfTracker.getWorkToken(), dfTracker.getWorkItemId()), dfTracker.stepName,
+          dfTracker.getWorkToken(), dfTracker.stepName,
           dfTracker.getStartToFinishProcessingTimeInMillis());
     }
 

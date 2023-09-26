@@ -2376,7 +2376,7 @@ public class StreamingDataflowWorker {
               DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
               // add breakdown
               Map<String, Set<Long>> foo1 = sampler.getRemovedProcessingTimersPerKey(
-                  new TupleKey(req.getWorkToken(), key));
+                  req.getWorkToken());
               LOG.info("CLAIRE TEST foo1: {}", foo1);
               Set<Long> foo = foo1.getOrDefault(dfState.getStepName().userName(),
                   new HashSet<>());
@@ -2390,7 +2390,7 @@ public class StreamingDataflowWorker {
               LOG.info("CLAIRE TEST looking for step: {} AND WORKTOKEN: {}, and key: {}",
                   dfState.getStepName().userName(), req.getWorkToken(), key);
               Map<String, Set<Long>> removed_by_keys = sampler.getRemovedProcessingTimersPerKey(
-                  new TupleKey(req.getWorkToken(), key));
+                  req.getWorkToken());
               LOG.info("CLAIRE TEST removed_by_keys: {}", removed_by_keys);
               Set<Long> removed_values = removed_by_keys.getOrDefault(
                   dfState.getStepName().userName(), new HashSet<>());

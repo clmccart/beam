@@ -5,7 +5,7 @@ import java.util.Objects;
 public class TupleKey {
 
   private Long workToken;
-  private String workKey;
+  // private String workKey;
 
   private int hashCode;
 
@@ -13,14 +13,14 @@ public class TupleKey {
     return workToken;
   }
 
-  public String getWorkKey() {
-    return workKey;
-  }
+  // public String getWorkKey() {
+  //   return workKey;
+  // }
 
-  public TupleKey(Long workToken, String key) {
+  public TupleKey(Long workToken) {
     this.workToken = workToken;
-    this.workKey = key;
-    this.hashCode = Objects.hash(workToken, key);
+    // this.workKey = key;
+    this.hashCode = Objects.hash(workToken);
   }
 
 
