@@ -348,9 +348,9 @@ public class StreamingDataflowWorkerTest {
                     DoFnSchemaInformation.create(),
                     Collections.emptyMap()))));
     return new ParallelInstruction()
-        .setSystemName(DEFAULT_PARDO_SYSTEM_NAME)
+        .setSystemName(String.valueOf(doFn.getClass()))
         .setName(String.valueOf(doFn.getClass()))
-        .setOriginalName(DEFAULT_PARDO_ORIGINAL_NAME)
+        .setOriginalName(String.valueOf(doFn.getClass()))
         .setParDo(
             new ParDoInstruction()
                 .setInput(
@@ -3246,7 +3246,7 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
-
+      LOG.info("CLAIRE TEST in slowdofntwo");
       Thread.sleep(1500);
       c.output(c.element());
     }

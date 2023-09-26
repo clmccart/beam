@@ -2387,6 +2387,15 @@ public class StreamingDataflowWorker {
                       .addAllFinishedMillisecondsProcessing(
                           foo)
                       .build());
+              if (!foo1.containsKey(dfState.getStepName().userName()) && !foo1.isEmpty()) {
+                for (String step : foo1.keySet()) {
+                  newLatencyBuilder.addActiveStepBreakdown(
+                      ActiveStepBreakdown.newBuilder().setStepName(step)
+                          .addAllFinishedMillisecondsProcessing(
+                              foo1.get(step))
+                          .build());
+                }
+              }
               LOG.info("CLAIRE TEST looking for step: {} AND WORKTOKEN: {}, and key: {}",
                   dfState.getStepName().userName(), req.getWorkToken(), key);
               Map<String, Set<Long>> removed_by_keys = sampler.getRemovedProcessingTimersPerKey(

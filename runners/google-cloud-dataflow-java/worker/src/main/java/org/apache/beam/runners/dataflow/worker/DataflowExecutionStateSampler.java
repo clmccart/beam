@@ -59,8 +59,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     activeTrackers.remove(tracker);
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
-      LOG.info("CLAIRE TEST stepName: {}", dfTracker.stepName);
-      LOG.info("CLAIRE TEST startToFinish: {}", dfTracker.getStartToFinishProcessingTimeInMillis());
+      LOG.info("CLAIRE TEST addingWorkToken {} to removedMap for step {}", dfTracker.getWorkToken(),
+          dfTracker.stepName);
       addToRemovedProcessingTimersPerKey(
           dfTracker.getWorkToken(), dfTracker.stepName,
           dfTracker.getStartToFinishProcessingTimeInMillis());
