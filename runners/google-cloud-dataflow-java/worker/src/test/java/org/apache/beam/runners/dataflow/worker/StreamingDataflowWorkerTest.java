@@ -3237,7 +3237,7 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
-      Thread.sleep(2000);
+      Thread.sleep(200);
       c.output(c.element());
     }
   }
@@ -3246,8 +3246,7 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
-      LOG.info("CLAIRE TEST in slowdofntwo");
-      Thread.sleep(1500);
+      Thread.sleep(150);
       c.output(c.element());
     }
   }
@@ -3263,7 +3262,7 @@ public class StreamingDataflowWorkerTest {
 
     FakeWindmillServer server = new FakeWindmillServer(errorCollector);
     StreamingDataflowWorkerOptions options = createTestingPipelineOptions(server);
-    options.setActiveWorkRefreshPeriodMillis(10);
+    options.setActiveWorkRefreshPeriodMillis(30);
     StreamingDataflowWorker worker = makeWorker(instructions, options, true /* publishCounters */);
     worker.start();
 
