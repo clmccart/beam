@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
@@ -32,7 +33,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   public void addToRemovedProcessingTimersPerKey(Long workToken, String stepName, Long val) {
     Map<String, Set<Long>> stepProcessingTimesForKey = this.removedProcessingTimesPerKey.getOrDefault(
-        workToken, new ConcurrentHashMap<>());
+        workToken, new HashMap<>());
     Set<Long> processingTimesForStep = stepProcessingTimesForKey.getOrDefault(stepName,
         new HashSet<Long>());
     processingTimesForStep.add(val);
@@ -64,6 +65,10 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       addToRemovedProcessingTimersPerKey(
           dfTracker.getWorkToken(), dfTracker.stepName,
           dfTracker.getStartToFinishProcessingTimeInMillis());
+      for (Entry<String, Long> finishedOnTracker : dfTracker.getStepToProcessingTime().entrySet()) {
+        addToRemovedProcessingTimersPerKey(dfTracker.getWorkToken(), finishedOnTracker.getKey(),
+            finishedOnTracker.getValue());
+      }
     }
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;

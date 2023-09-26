@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -257,6 +258,8 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private long endTime;
     public String stepName;
 
+    private Map<String, Long> stepToProcessingTime;
+
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
         DataflowExecutionState otherState,
@@ -274,6 +277,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       // TODO: handle end time correctly. if call getStartToFinish before end is set, throw an error?
       this.endTime = 0;
       this.stepName = otherState.getStepName().userName();
+      this.stepToProcessingTime = new HashMap<>();
     }
 
     public long getStartToFinishProcessingTimeInMillis() {
@@ -320,6 +324,10 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       super.takeSampleOnce(millisSinceLastSample);
     }
 
+    public Map<String, Long> getStepToProcessingTime() {
+      return this.stepToProcessingTime;
+    }
+
     @Override
     public Closeable enterState(ExecutionState newState) {
       Closeable baseCloseable = super.enterState(newState);
@@ -338,6 +346,11 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
               ((DataflowExecutionState) newState).getStepName().userName());
           elementExecutionTracker.exit();
           this.endTime = System.currentTimeMillis();
+          if (((DataflowExecutionState) newState).getStepName().userName() != null) {
+            this.stepToProcessingTime.put(
+                ((DataflowExecutionState) newState).getStepName().userName(),
+                this.getStartToFinishProcessingTimeInMillis());
+          }
         }
         baseCloseable.close();
       };
