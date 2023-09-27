@@ -238,6 +238,8 @@ public class StreamingDataflowWorker {
   private final WindmillServerStub windmillServer;
   private final Thread dispatchThread;
   private final Thread commitThread;
+
+  private DataflowExecutionStateSampler sampler;
   private final AtomicLong activeCommitBytes = new AtomicLong();
   private final AtomicBoolean running = new AtomicBoolean();
   private final StateFetcher stateFetcher;
@@ -552,7 +554,7 @@ public class StreamingDataflowWorker {
     memoryMonitorThread.start();
     dispatchThread.start();
     commitThread.start();
-    DataflowExecutionStateSampler sampler = DataflowExecutionStateSampler.instance();
+    this.sampler = DataflowExecutionStateSampler.instance();
     sampler.start();
 
     // Periodically report workers counters and other updates.
@@ -1132,7 +1134,8 @@ public class StreamingDataflowWorker {
 
       // Add the output to the commit queue.
       work.setState(State.COMMIT_QUEUED);
-      outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions());
+      LOG.info("CLAIRE TEST enriching commit");
+      outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions(this.sampler));
 
       WorkItemCommitRequest commitRequest = outputBuilder.build();
       int byteLimit = maxWorkItemCommitBytes;
@@ -1311,7 +1314,8 @@ public class StreamingDataflowWorker {
         commit = commitQueue.poll();
       }
       Windmill.CommitWorkRequest commitRequest = commitRequestBuilder.build();
-      LOG.trace("Commit: {}", commitRequest);
+      LOG.info("Commit: {}",
+          commitRequest.getRequests(0).getRequests(0).getPerWorkItemLatencyAttributionsList());
       activeCommitBytes.set(commitBytes);
       windmillServer.commitWork(commitRequest);
       activeCommitBytes.set(0);
@@ -2129,7 +2133,8 @@ public class StreamingDataflowWorker {
       }
     }
 
-    public Collection<Windmill.LatencyAttribution> getLatencyAttributions() {
+    public Collection<Windmill.LatencyAttribution> getLatencyAttributions(
+        DataflowExecutionStateSampler sampler) {
       List<Windmill.LatencyAttribution> list = new ArrayList<>();
       for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
         Duration duration = totalDurationPerState.getOrDefault(state, Duration.ZERO);
@@ -2139,16 +2144,78 @@ public class StreamingDataflowWorker {
         if (duration.equals(Duration.ZERO)) {
           continue;
         }
-        Windmill.LatencyAttribution la = Windmill.LatencyAttribution.newBuilder()
+        LatencyAttribution.Builder laBuilder = Windmill.LatencyAttribution.newBuilder();
+        if (state == LatencyAttribution.State.ACTIVE) {
+          // add step breakdown
+          laBuilder = addStepBreakdownToLatencyAttributionBuilder(laBuilder,
+              workItem.getKey().toString(),
+              workItem.getWorkToken(), sampler);
+        }
+        Windmill.LatencyAttribution la = laBuilder
             .setState(state)
             .setTotalDurationMillis(duration.getMillis())
             .build();
-        if (state == LatencyAttribution.State.ACTIVE) {
-          // add step breakdown
-        }
         list.add(la);
       }
       return list;
+    }
+
+    private LatencyAttribution.Builder addStepBreakdownToLatencyAttributionBuilder(
+        LatencyAttribution.Builder builder, String key, long workToken,
+        DataflowExecutionStateSampler sampler) {
+      LOG.info("CLAIRE TEST enriching for key {} workToken {}", key, workToken);
+      // Refactor.
+      List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
+          sampler,
+          workToken, key);
+      LOG.info("CLAIRE TEST tracker size: {}", trackers.size());
+      if (trackers.size() == 0) {
+        // TODO: add breakdowns from removed trackers.
+        Map<String, Set<Tuple>> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
+            workToken);
+        for (Entry<String, Set<Tuple>> removedTracker : removedTrackers.entrySet()) {
+          ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
+          if (removedTracker.getKey() == null) {
+            continue;
+          }
+          breakdown_builder.setStepName(removedTracker.getKey());
+          for (Tuple timesByStep : removedTracker.getValue()) {
+            breakdown_builder.addFinishedMillisecondsProcessing(timesByStep.getProcessingTime());
+          }
+          builder.addActiveStepBreakdown(breakdown_builder.build());
+        }
+      }
+      for (DataflowExecutionStateTracker tracker : trackers) {
+        for (Entry<String, Set<Tuple>> stepProcessingTime : tracker.getStepToProcessingTimes()
+            .entrySet()) {
+          String stepName = stepProcessingTime.getKey();
+          if (stepName == null) {
+            continue;
+          }
+          ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
+          breakdown_builder.setStepName(stepName);
+          // TODO next: add the removed tracker info to the latency proto.
+          for (Tuple entry : stepProcessingTime.getValue()) {
+            if (entry.hasEndTime()) {
+              breakdown_builder.addFinishedMillisecondsProcessing(
+                  entry.getProcessingTime());
+            } else {
+              breakdown_builder.setCurrentMillisecondsProcessing(entry.getProcessingTime());
+            }
+          }
+          // Add latencies from removed trackers for that step.
+          Map<String, Set<Tuple>> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
+              workToken);
+          if (removedTrackers.containsKey(stepName)) {
+            for (Tuple entry : removedTrackers.get(stepName)) {
+              breakdown_builder.addFinishedMillisecondsProcessing(
+                  entry.getProcessingTime());
+            }
+          }
+          builder.addActiveStepBreakdown(breakdown_builder.build());
+        }
+      }
+      return builder;
     }
 
     enum State {
@@ -2340,89 +2407,75 @@ public class StreamingDataflowWorker {
                       .setKey(shardedKey.key())
                       .setShardingKey(shardedKey.shardingKey())
                       .setWorkToken(work.getWorkItem().getWorkToken())
-                      .addAllLatencyAttribution(work.getLatencyAttributions())
+                      .addAllLatencyAttribution(work.getLatencyAttributions(sampler))
                       .build());
             }
           }
         }
       }
-      result = this.enrichLatenciesFromTrackers(result, sampler);
+      // result = this.enrichLatenciesFromTrackers(result, sampler);
       LOG.info("CLAIRE TEST result: {}", result);
       return result;
     }
 
-    private List<KeyedGetDataRequest> enrichLatenciesFromTrackers(List<KeyedGetDataRequest> result,
-        DataflowExecutionStateSampler sampler) {
-      List<KeyedGetDataRequest> newResult = new ArrayList<KeyedGetDataRequest>();
-      for (Windmill.KeyedGetDataRequest req : result) {
-        List<Windmill.LatencyAttribution> latencyList = req.getLatencyAttributionList();
-        List<Windmill.LatencyAttribution> newLatencyList = new ArrayList<LatencyAttribution>();
-        for (int i = 0; i < latencyList.size(); i++) {
-          LatencyAttribution latency = latencyList.get(i);
-          if (latency.getState() == LatencyAttribution.State.ACTIVE) {
-            LatencyAttribution.Builder newLatencyBuilder = LatencyAttribution.newBuilder()
-                .mergeFrom(latency);
-            // Refactor.
-            String key = req.getKey().toString();
-            List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
-                sampler,
-                req.getWorkToken(), key);
-            for (DataflowExecutionStateTracker tracker : trackers) {
-              for (Entry<String, Set<Tuple>> stepProcessingTime : tracker.getStepToProcessingTimes()
-                  .entrySet()) {
-                String stepName = stepProcessingTime.getKey();
-                LOG.info("CLAIRE TEST step name: {}", stepName);
-                if (stepName == null) {
-                  continue;
-                }
-                ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
-                breakdown_builder.setStepName(stepName);
-                // TODO next: add the removed tracker info to the latency proto.
-                for (Tuple entry : stepProcessingTime.getValue()) {
-                  if (entry.hasEndTime()) {
-                    breakdown_builder.addFinishedMillisecondsProcessing(
-                        entry.getProcessingTime());
-                  } else {
-                    breakdown_builder.setCurrentMillisecondsProcessing(entry.getProcessingTime());
-                  }
-                }
-                // Add latencies from removed trackers for that step.
-                Map<String, Set<Tuple>> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
-                    req.getWorkToken());
-                if (removedTrackers.containsKey(stepName)) {
-                  for (Tuple entry : removedTrackers.get(stepName)) {
-                    breakdown_builder.addFinishedMillisecondsProcessing(
-                        entry.getProcessingTime());
-                  }
-                }
-                newLatencyBuilder.addActiveStepBreakdown(breakdown_builder.build());
-              }
-            }
-            latency = newLatencyBuilder.build();
-          }
-          newLatencyList.add(latency);
-        }
-        newResult.add(
-            KeyedGetDataRequest.newBuilder().mergeFrom(req).clearLatencyAttribution()
-                .addAllLatencyAttribution(newLatencyList)
-                .build());
-      }
-      return newResult;
-    }
-
-    private List<DataflowExecutionStateTracker> getDataflowExecutionStateTrackerForWorkToken(
-        DataflowExecutionStateSampler sampler, Long workToken, String key) {
-      List<DataflowExecutionStateTracker> trackers = new ArrayList<>();
-      // Can multiple executionstatetrackers have the same worktoken? doesn't seem like it
-      Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
-      for (ExecutionStateTracker tracker : processingTrackers) {
-        DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-        if (dfTracker.getWorkToken().equals(workToken) && dfTracker.getWorkItemId().equals(key)) {
-          trackers.add(dfTracker);
-        }
-      }
-      return trackers;
-    }
+    // private List<KeyedGetDataRequest> enrichLatenciesFromTrackers(List<KeyedGetDataRequest> result,
+    //     DataflowExecutionStateSampler sampler) {
+    //   List<KeyedGetDataRequest> newResult = new ArrayList<KeyedGetDataRequest>();
+    //   for (Windmill.KeyedGetDataRequest req : result) {
+    //     List<Windmill.LatencyAttribution> latencyList = req.getLatencyAttributionList();
+    //     List<Windmill.LatencyAttribution> newLatencyList = new ArrayList<LatencyAttribution>();
+    //     for (int i = 0; i < latencyList.size(); i++) {
+    //       LatencyAttribution latency = latencyList.get(i);
+    //       if (latency.getState() == LatencyAttribution.State.ACTIVE) {
+    //         LatencyAttribution.Builder newLatencyBuilder = LatencyAttribution.newBuilder()
+    //             .mergeFrom(latency);
+    //         // Refactor.
+    //         String key = req.getKey().toString();
+    //         List<DataflowExecutionStateTracker> trackers = getDataflowExecutionStateTrackerForWorkToken(
+    //             sampler,
+    //             req.getWorkToken(), key);
+    //         for (DataflowExecutionStateTracker tracker : trackers) {
+    //           for (Entry<String, Set<Tuple>> stepProcessingTime : tracker.getStepToProcessingTimes()
+    //               .entrySet()) {
+    //             String stepName = stepProcessingTime.getKey();
+    //             LOG.info("CLAIRE TEST step name: {}", stepName);
+    //             if (stepName == null) {
+    //               continue;
+    //             }
+    //             ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
+    //             breakdown_builder.setStepName(stepName);
+    //             // TODO next: add the removed tracker info to the latency proto.
+    //             for (Tuple entry : stepProcessingTime.getValue()) {
+    //               if (entry.hasEndTime()) {
+    //                 breakdown_builder.addFinishedMillisecondsProcessing(
+    //                     entry.getProcessingTime());
+    //               } else {
+    //                 breakdown_builder.setCurrentMillisecondsProcessing(entry.getProcessingTime());
+    //               }
+    //             }
+    //             // Add latencies from removed trackers for that step.
+    //             Map<String, Set<Tuple>> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
+    //                 req.getWorkToken());
+    //             if (removedTrackers.containsKey(stepName)) {
+    //               for (Tuple entry : removedTrackers.get(stepName)) {
+    //                 breakdown_builder.addFinishedMillisecondsProcessing(
+    //                     entry.getProcessingTime());
+    //               }
+    //             }
+    //             newLatencyBuilder.addActiveStepBreakdown(breakdown_builder.build());
+    //           }
+    //         }
+    //         latency = newLatencyBuilder.build();
+    //       }
+    //       newLatencyList.add(latency);
+    //     }
+    //     newResult.add(
+    //         KeyedGetDataRequest.newBuilder().mergeFrom(req).clearLatencyAttribution()
+    //             .addAllLatencyAttribution(newLatencyList)
+    //             .build());
+    //   }
+    //   return newResult;
+    // }
 
     private String elapsedString(Instant start, Instant end) {
       Duration activeFor = new Duration(start, end);
@@ -2490,6 +2543,20 @@ public class StreamingDataflowWorker {
       }
       executionStateQueue.clear();
     }
+  }
+
+  public static List<DataflowExecutionStateTracker> getDataflowExecutionStateTrackerForWorkToken(
+      DataflowExecutionStateSampler sampler, Long workToken, String key) {
+    List<DataflowExecutionStateTracker> trackers = new ArrayList<>();
+    // Can multiple executionstatetrackers have the same worktoken? doesn't seem like it
+    Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
+    for (ExecutionStateTracker tracker : processingTrackers) {
+      DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+      if (dfTracker.getWorkToken().equals(workToken) && dfTracker.getWorkItemId().equals(key)) {
+        trackers.add(dfTracker);
+      }
+    }
+    return trackers;
   }
 
   private static class ExecutionState {

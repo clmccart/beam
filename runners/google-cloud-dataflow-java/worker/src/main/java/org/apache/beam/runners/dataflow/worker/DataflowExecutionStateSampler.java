@@ -8,12 +8,12 @@ import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.Tuple;
 import org.joda.time.DateTimeUtils.MillisProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+// import org.slf4j.Logger;
+// import org.slf4j.LoggerFactory;
 
 public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
+  // private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
   protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
 
