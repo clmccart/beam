@@ -1,12 +1,8 @@
 package org.apache.beam.runners.dataflow.worker;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
@@ -19,10 +15,11 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  protected Map<Long, Map<String, Tuple>> removedProcessingTimesPerKey = new HashMap<>();
+  protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
 
-  public Map<String, Tuple> getRemovedProcessingTimersPerKey(Long workToken) {
-    return this.removedProcessingTimesPerKey.getOrDefault(workToken, new HashMap<>());
+  public Map<String, Set<Tuple>> getRemovedProcessingTimersPerKey(Long workToken) {
+    return this.removedProcessingTimesPerKey.getOrDefault(workToken,
+        new HashMap<String, Set<Tuple>>());
   }
 
 
@@ -44,7 +41,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     activeTrackers.remove(tracker);
 
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    removedProcessingTimesPerKey.put(dfTracker.getWorkToken(), dfTracker.getStepToProcessingTime());
+    removedProcessingTimesPerKey.put(dfTracker.getWorkToken(),
+        dfTracker.getStepToProcessingTimes());
     LOG.info("CLAIRE TEST");
     // if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
     //   LOG.info("CLAIRE TEST addingWorkToken {} to removedMap for step {}", dfTracker.getWorkToken(),

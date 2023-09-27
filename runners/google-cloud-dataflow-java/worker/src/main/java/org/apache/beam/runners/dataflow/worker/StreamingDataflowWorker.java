@@ -25,7 +25,6 @@ import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Pr
 import com.google.api.services.dataflow.model.CounterStructuredName;
 import com.google.api.services.dataflow.model.CounterUpdate;
 import com.google.api.services.dataflow.model.MapTask;
-import com.google.api.services.dataflow.model.ParallelInstruction;
 import com.google.api.services.dataflow.model.Status;
 import com.google.api.services.dataflow.model.StreamingComputationConfig;
 import com.google.api.services.dataflow.model.StreamingConfigTask;
@@ -38,7 +37,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -78,7 +76,6 @@ import org.apache.beam.runners.dataflow.util.CloudObject;
 import org.apache.beam.runners.dataflow.util.CloudObjects;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.Tuple;
-import org.apache.beam.runners.dataflow.worker.DataflowOperationContext.DataflowExecutionState;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingPerStageSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.StreamingDataflowWorker.Work.State;
@@ -2390,7 +2387,7 @@ public class StreamingDataflowWorker {
               //             foo)
               //         .build());
               // if (!foo1.containsKey(dfState.getStepName().userName()) && !foo1.isEmpty()) {
-              for (Entry<String, Tuple> stepProcessingTime : tracker.getStepToProcessingTime()
+              for (Entry<String, Set<Tuple>> stepProcessingTime : tracker.getStepToProcessingTimes()
                   .entrySet()) {
                 String stepName = stepProcessingTime.getKey();
                 LOG.info("CLAIRE TEST step name: {}", stepName);
@@ -2400,21 +2397,22 @@ public class StreamingDataflowWorker {
                 ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
                 breakdown_builder.setStepName(stepName);
                 // TODO next: add the removed tracker info to the latency proto.
-                LOG.info("CLAIRE TEST removed: {}",
-                    sampler.getRemovedProcessingTimersPerKey(req.getWorkToken()));
-                if (stepProcessingTime.getValue().hasEndTime()) {
-                  breakdown_builder.addFinishedMillisecondsProcessing(
-                      stepProcessingTime.getValue().getProcessingTime());
-                } else {
-                  breakdown_builder.setCurrentMillisecondsProcessing(stepProcessingTime.getValue()
-                      .getProcessingTime());
+                for (Tuple entry : stepProcessingTime.getValue()) {
+                  if (entry.hasEndTime()) {
+                    breakdown_builder.addFinishedMillisecondsProcessing(
+                        entry.getProcessingTime());
+                  } else {
+                    breakdown_builder.setCurrentMillisecondsProcessing(entry.getProcessingTime());
+                  }
                 }
                 // Add latencies from removed trackers for that step.
-                Map<String, Tuple> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
+                Map<String, Set<Tuple>> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
                     req.getWorkToken());
                 if (removedTrackers.containsKey(stepName)) {
-                  breakdown_builder.addFinishedMillisecondsProcessing(
-                      removedTrackers.get(stepName).getProcessingTime());
+                  for (Tuple entry : removedTrackers.get(stepName)) {
+                    breakdown_builder.addFinishedMillisecondsProcessing(
+                        entry.getProcessingTime());
+                  }
                 }
                 newLatencyBuilder.addActiveStepBreakdown(breakdown_builder.build());
               }

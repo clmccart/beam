@@ -22,20 +22,19 @@ import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Pr
 import com.google.api.services.dataflow.model.SideInputInfo;
 import java.io.Closeable;
 import java.io.IOException;
-import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import org.apache.beam.runners.core.NullSideInputReader;
 import org.apache.beam.runners.core.SideInputReader;
 import org.apache.beam.runners.core.StepContext;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
-import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowStepContext;
 import org.apache.beam.runners.dataflow.worker.DataflowOperationContext.DataflowExecutionState;
 import org.apache.beam.runners.dataflow.worker.counters.CounterFactory;
@@ -50,7 +49,6 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Iterables;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.io.Closer;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.joda.time.DateTimeUtils.MillisProvider;
 import org.joda.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -283,7 +281,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
     public String stepName;
 
-    private Map<String, Tuple> stepToProcessingTime;
+    private Map<String, Set<Tuple>> stepToProcessingTimes;
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
@@ -299,7 +297,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       this.workToken = workToken;
       this.contextActivationObserverRegistry = ContextActivationObserverRegistry.createDefault();
       this.stepName = otherState.getStepName().userName();
-      this.stepToProcessingTime = new HashMap<>();
+      this.stepToProcessingTimes = new HashMap<>();
     }
 
     @Override
@@ -342,8 +340,26 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       super.takeSampleOnce(millisSinceLastSample);
     }
 
-    public Map<String, Tuple> getStepToProcessingTime() {
-      return this.stepToProcessingTime;
+    public Map<String, Set<Tuple>> getStepToProcessingTimes() {
+      return this.stepToProcessingTimes;
+    }
+
+    public void addStartEntryToProcessingTimes(String stepName, long startTime) {
+      Set<Tuple> messageTimes = this.stepToProcessingTimes.getOrDefault(stepName, new HashSet<>());
+      messageTimes.add(new Tuple(startTime));
+      this.stepToProcessingTimes.put(stepName, messageTimes);
+    }
+
+    public void addEndEntryToProcessingTimes(String stepName, long endTime) {
+      Set<Tuple> messageTimes = this.stepToProcessingTimes.getOrDefault(stepName, new HashSet<>());
+      Set<Tuple> newMessageTimes = new HashSet<>();
+      for (Tuple messageEntry : messageTimes) {
+        if (!messageEntry.hasEndTime()) {
+          messageEntry.setEndTime(endTime);
+        }
+        newMessageTimes.add(messageEntry);
+      }
+      this.stepToProcessingTimes.put(stepName, newMessageTimes);
     }
 
     @Override
@@ -356,7 +372,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
             ((DataflowExecutionState) newState).getStepName().userName(), workToken);
         this.stepName = ((DataflowExecutionState) newState).getStepName().userName();
         // TODO: put this on the elementExecutionTracker below?
-        this.stepToProcessingTime.put(this.stepName, new Tuple(System.currentTimeMillis()));
+        this.addStartEntryToProcessingTimes(this.stepName, System.currentTimeMillis());
         elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
       }
 
@@ -367,10 +383,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
               , workToken);
           elementExecutionTracker.exit();
           if (step != null) {
-            Tuple tuple = this.stepToProcessingTime.get(step);
-            tuple.setEndTime(System.currentTimeMillis());
-            this.stepToProcessingTime.put(
-                step, tuple);
+            this.addEndEntryToProcessingTimes(step, System.currentTimeMillis());
           }
         }
         baseCloseable.close();
