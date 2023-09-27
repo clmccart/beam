@@ -43,24 +43,6 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     removedProcessingTimesPerKey.put(dfTracker.getWorkToken(),
         dfTracker.getStepToProcessingTimes());
-    LOG.info("CLAIRE TEST");
-    // if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
-    //   LOG.info("CLAIRE TEST addingWorkToken {} to removedMap for step {}", dfTracker.getWorkToken(),
-    //       dfTracker.stepName);
-    //   addToRemovedProcessingTimersPerKey(
-    //       dfTracker.getWorkToken(), dfTracker.stepName,
-    //       dfTracker.getStartToFinishProcessingTimeInMillis());
-    //   for (Entry<String, Long> finishedOnTracker : dfTracker.getStepToProcessingTime().entrySet()) {
-    //     addToRemovedProcessingTimersPerKey(dfTracker.getWorkToken(), finishedOnTracker.getKey(),
-    //         finishedOnTracker.getValue());
-    //   }
-    // }
-
-    // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    // // Is the tracker here in state active?
-    // LOG.info("CLAIRE TEST dfTracker state during removal: {}",
-    //     dfTracker.getCurrentState().getStateName());
-
     // Attribute any remaining time since the last sampling while removing the tracker.
     //
     // There is a race condition here; if sampling happens in the time between when we remove the

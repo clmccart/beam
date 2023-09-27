@@ -2347,10 +2347,6 @@ public class StreamingDataflowWorker {
         }
       }
       result = this.enrichLatenciesFromTrackers(result, sampler);
-      // result.add(
-      //     Windmill.KeyedGetDataRequest.newBuilder().setKey(ByteString.copyFromUtf8("fakekey"))
-      //         .setWorkToken(new Random().nextInt())
-      //         .addAllLatencyAttribution(this.getLatenciesFromTrackers(sampler)).build());
       LOG.info("CLAIRE TEST result: {}", result);
       return result;
     }
@@ -2372,21 +2368,6 @@ public class StreamingDataflowWorker {
                 sampler,
                 req.getWorkToken(), key);
             for (DataflowExecutionStateTracker tracker : trackers) {
-              // DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
-              // // add breakdown
-              // Map<String, Set<Long>> foo1 = sampler.getRemovedProcessingTimersPerKey(
-              //     req.getWorkToken());
-              // LOG.info("CLAIRE TEST foo1: {}", foo1);
-              // Set<Long> foo = foo1.getOrDefault(dfState.getStepName().userName(),
-              //     new HashSet<>());
-              // LOG.info("CLAIRE TEST foo: {}", foo);
-              // newLatencyBuilder.addActiveStepBreakdown(
-              //     ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
-              //         .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
-              //         .addAllFinishedMillisecondsProcessing(
-              //             foo)
-              //         .build());
-              // if (!foo1.containsKey(dfState.getStepName().userName()) && !foo1.isEmpty()) {
               for (Entry<String, Set<Tuple>> stepProcessingTime : tracker.getStepToProcessingTimes()
                   .entrySet()) {
                 String stepName = stepProcessingTime.getKey();
@@ -2416,18 +2397,7 @@ public class StreamingDataflowWorker {
                 }
                 newLatencyBuilder.addActiveStepBreakdown(breakdown_builder.build());
               }
-              // }
-
             }
-            // for (Map.Entry<String, Long> entry : sampler.removedProcessingTimesPerKey.entrySet()) {
-            //   // add breakdown
-            //   // TODO: next thing to do is to bucket those as values by stepname (will need to be done in the tracker i think).
-            //   newLatencyBuilder.addActiveStepBreakdown(
-            //       ActiveStepBreakdown.newBuilder().setStepName(entry.getKey())
-            //           .setMillisecondsProcessing(
-            //               entry.getValue())
-            //           .build());
-            // }
             latency = newLatencyBuilder.build();
           }
           newLatencyList.add(latency);
@@ -2453,44 +2423,6 @@ public class StreamingDataflowWorker {
       }
       return trackers;
     }
-//     private Collection<Windmill.LatencyAttribution> getLatenciesFromTrackers(
-//         ExecutionStateSampler sampler) {
-//       List<Windmill.LatencyAttribution> list = new ArrayList<>();
-//       HashMap<String, List<Long>> processings = new HashMap<>();
-//       Set<ExecutionStateTracker> processingTrackers = sampler.getActivelyProcessingTrackers();
-//       LOG.info("CLAIRE TEST 1 num processingTrackers: {}", processingTrackers.size());
-//       for (ExecutionStateTracker tracker : processingTrackers) {
-//         // Hoping that this is of type DataflowStateTracker. If it is, we can make changes in there to give us the info we want.
-//         DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-//         DataflowExecutionState dfState = (DataflowExecutionState) dfTracker.getCurrentState();
-//         LOG.info("CLAIRE TEST dfState stepname: {}", dfState.getStepName().userName());
-//         // maybe should look for this case in getActivelyProcessingTrackers?
-// //                  LOG.info("CLAIRE TEST dfTrack is process element state: {} ",
-// //                      dfTracker.getCurrentState().isProcessElementState);
-//         LOG.info("CLAIRE TEST tracker time in state: {}",
-//             dfTracker.getMillisSinceLastTransition());
-//         if (processings.containsKey(dfState.getStepName().userName())) {
-//           List<Long> processingsForStep = processings.get(dfState.getStepName().userName());
-//           processingsForStep.add(dfTracker.getMillisSinceLastTransition());
-//           processings.put(dfState.getStepName().userName(), processingsForStep);
-//         } else {
-//           processings.put(dfState.getStepName().userName(),
-//               new ArrayList<Long>(Arrays.asList(dfTracker.getMillisSinceLastTransition())));
-//         }
-//       }
-//       for (Map.Entry<String, List<Long>> processingForStep : processings.entrySet()) {
-//         double average = processingForStep.getValue().stream().mapToLong(val -> val).average()
-//             .orElse(0.0);
-//         LOG.info("CLAIRE TEST adding to latency metrics: {}, {}", processingForStep.getKey(),
-//             average);
-//         list.add(
-//             Windmill.LatencyAttribution.newBuilder()
-//                 .setStepName(processingForStep.getKey())
-//                 .setMillisecondsProcessing((long) average)
-//                 .build());
-//       }
-//       return list;
-//     }
 
     private String elapsedString(Instant start, Instant end) {
       Duration activeFor = new Duration(start, end);
