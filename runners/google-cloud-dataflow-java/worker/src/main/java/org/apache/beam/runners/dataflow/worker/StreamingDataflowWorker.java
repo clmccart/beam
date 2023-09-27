@@ -77,6 +77,7 @@ import org.apache.beam.runners.dataflow.options.DataflowWorkerHarnessOptions;
 import org.apache.beam.runners.dataflow.util.CloudObject;
 import org.apache.beam.runners.dataflow.util.CloudObjects;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.Tuple;
 import org.apache.beam.runners.dataflow.worker.DataflowOperationContext.DataflowExecutionState;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingPerStageSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingSystemCounterNames;
@@ -2374,35 +2375,48 @@ public class StreamingDataflowWorker {
                 sampler,
                 req.getWorkToken(), key);
             for (DataflowExecutionStateTracker tracker : trackers) {
-              DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
-              // add breakdown
-              Map<String, Set<Long>> foo1 = sampler.getRemovedProcessingTimersPerKey(
-                  req.getWorkToken());
-              LOG.info("CLAIRE TEST foo1: {}", foo1);
-              Set<Long> foo = foo1.getOrDefault(dfState.getStepName().userName(),
-                  new HashSet<>());
-              LOG.info("CLAIRE TEST foo: {}", foo);
-              newLatencyBuilder.addActiveStepBreakdown(
-                  ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
-                      .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
-                      .addAllFinishedMillisecondsProcessing(
-                          foo)
-                      .build());
+              // DataflowExecutionState dfState = (DataflowExecutionState) tracker.getCurrentState();
+              // // add breakdown
+              // Map<String, Set<Long>> foo1 = sampler.getRemovedProcessingTimersPerKey(
+              //     req.getWorkToken());
+              // LOG.info("CLAIRE TEST foo1: {}", foo1);
+              // Set<Long> foo = foo1.getOrDefault(dfState.getStepName().userName(),
+              //     new HashSet<>());
+              // LOG.info("CLAIRE TEST foo: {}", foo);
+              // newLatencyBuilder.addActiveStepBreakdown(
+              //     ActiveStepBreakdown.newBuilder().setStepName(dfState.getStepName().userName())
+              //         .setCurrentMillisecondsProcessing(tracker.getMillisSinceLastTransition())
+              //         .addAllFinishedMillisecondsProcessing(
+              //             foo)
+              //         .build());
               // if (!foo1.containsKey(dfState.getStepName().userName()) && !foo1.isEmpty()) {
-              for (Entry<String, Long> stepProcessingTime : tracker.getStepToProcessingTime()
+              for (Entry<String, Tuple> stepProcessingTime : tracker.getStepToProcessingTime()
                   .entrySet()) {
-                LOG.info("CLAIRE TEST step name: {}", stepProcessingTime.getKey());
-                Set<Long> times = foo1.getOrDefault(stepProcessingTime.getKey(), new HashSet<>());
-                times.add(stepProcessingTime.getValue());
-                if (dfState.getStepName().userName().equals(stepProcessingTime.getKey())) {
-                  LOG.info("CLAIRE TEST handle this scenario");
+                String stepName = stepProcessingTime.getKey();
+                LOG.info("CLAIRE TEST step name: {}", stepName);
+                if (stepName == null) {
                   continue;
                 }
-                newLatencyBuilder.addActiveStepBreakdown(
-                    ActiveStepBreakdown.newBuilder().setStepName(stepProcessingTime.getKey())
-                        .addAllFinishedMillisecondsProcessing(
-                            times)
-                        .build());
+                ActiveStepBreakdown.Builder breakdown_builder = ActiveStepBreakdown.newBuilder();
+                breakdown_builder.setStepName(stepName);
+                // TODO next: add the removed tracker info to the latency proto.
+                LOG.info("CLAIRE TEST removed: {}",
+                    sampler.getRemovedProcessingTimersPerKey(req.getWorkToken()));
+                if (stepProcessingTime.getValue().hasEndTime()) {
+                  breakdown_builder.addFinishedMillisecondsProcessing(
+                      stepProcessingTime.getValue().getProcessingTime());
+                } else {
+                  breakdown_builder.setCurrentMillisecondsProcessing(stepProcessingTime.getValue()
+                      .getProcessingTime());
+                }
+                // Add latencies from removed trackers for that step.
+                Map<String, Tuple> removedTrackers = sampler.getRemovedProcessingTimersPerKey(
+                    req.getWorkToken());
+                if (removedTrackers.containsKey(stepName)) {
+                  breakdown_builder.addFinishedMillisecondsProcessing(
+                      removedTrackers.get(stepName).getProcessingTime());
+                }
+                newLatencyBuilder.addActiveStepBreakdown(breakdown_builder.build());
               }
               // }
 

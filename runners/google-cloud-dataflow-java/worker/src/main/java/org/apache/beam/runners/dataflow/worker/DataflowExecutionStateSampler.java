@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.Tuple;
 import org.joda.time.DateTimeUtils.MillisProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,29 +19,12 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  protected Map<Long, Map<String, Set<Long>>> removedProcessingTimesPerKey = new ConcurrentHashMap<>();
+  protected Map<Long, Map<String, Tuple>> removedProcessingTimesPerKey = new HashMap<>();
 
-  public Map<String, Set<Long>> getRemovedProcessingTimersPerKey(Long key) {
-
-    String logStr = "";
-    for (Long tk : this.removedProcessingTimesPerKey.keySet()) {
-      String str = String.format("\nworkToken: %s", tk);
-      logStr = logStr.concat(str);
-    }
-    LOG.info("CLAIRE TEST removed_processing timer keys: {}", logStr);
-    return this.removedProcessingTimesPerKey.getOrDefault(key, new HashMap<>());
+  public Map<String, Tuple> getRemovedProcessingTimersPerKey(Long workToken) {
+    return this.removedProcessingTimesPerKey.getOrDefault(workToken, new HashMap<>());
   }
 
-  public void addToRemovedProcessingTimersPerKey(Long workToken, String stepName, Long val) {
-    Map<String, Set<Long>> stepProcessingTimesForKey = this.removedProcessingTimesPerKey.getOrDefault(
-        workToken, new HashMap<>());
-    Set<Long> processingTimesForStep = stepProcessingTimesForKey.getOrDefault(stepName,
-        new HashSet<Long>());
-    processingTimesForStep.add(val);
-    stepProcessingTimesForKey.put(stepName, processingTimesForStep);
-    this.removedProcessingTimesPerKey.put(workToken,
-        stepProcessingTimesForKey);
-  }
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 
@@ -58,18 +42,21 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   @Override
   public void removeTracker(ExecutionStateTracker tracker) {
     activeTrackers.remove(tracker);
+
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
-      LOG.info("CLAIRE TEST addingWorkToken {} to removedMap for step {}", dfTracker.getWorkToken(),
-          dfTracker.stepName);
-      addToRemovedProcessingTimersPerKey(
-          dfTracker.getWorkToken(), dfTracker.stepName,
-          dfTracker.getStartToFinishProcessingTimeInMillis());
-      for (Entry<String, Long> finishedOnTracker : dfTracker.getStepToProcessingTime().entrySet()) {
-        addToRemovedProcessingTimersPerKey(dfTracker.getWorkToken(), finishedOnTracker.getKey(),
-            finishedOnTracker.getValue());
-      }
-    }
+    removedProcessingTimesPerKey.put(dfTracker.getWorkToken(), dfTracker.getStepToProcessingTime());
+    LOG.info("CLAIRE TEST");
+    // if (dfTracker.getStartToFinishProcessingTimeInMillis() > 0) {
+    //   LOG.info("CLAIRE TEST addingWorkToken {} to removedMap for step {}", dfTracker.getWorkToken(),
+    //       dfTracker.stepName);
+    //   addToRemovedProcessingTimersPerKey(
+    //       dfTracker.getWorkToken(), dfTracker.stepName,
+    //       dfTracker.getStartToFinishProcessingTimeInMillis());
+    //   for (Entry<String, Long> finishedOnTracker : dfTracker.getStepToProcessingTime().entrySet()) {
+    //     addToRemovedProcessingTimersPerKey(dfTracker.getWorkToken(), finishedOnTracker.getKey(),
+    //         finishedOnTracker.getValue());
+    //   }
+    // }
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
     // // Is the tracker here in state active?

@@ -241,6 +241,32 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     return executionStateTracker;
   }
 
+  public static class Tuple {
+
+    public final long startTime;
+    public long endTime = 0L;
+
+    public Tuple(long startTime) {
+      this.startTime = startTime;
+    }
+
+    public void setEndTime(long endTime) {
+      this.endTime = endTime;
+    }
+
+    public boolean hasEndTime() {
+      return this.endTime != 0L;
+    }
+
+    public long getProcessingTime() {
+      // TODO: handle case where endtime hasnt been set yet.
+      if (this.endTime == 0L) {
+        return System.currentTimeMillis() - this.startTime;
+      }
+      return this.endTime - this.startTime;
+    }
+  }
+
   /**
    * An extension of {@link ExecutionStateTracker} that also installs a {@link MetricsContainer}
    * using the current state to locate the {@link MetricsEnvironment}.
@@ -254,11 +280,10 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
     private final String workItemId;
     private final Long workToken;
-    private long startTime;
-    private long endTime;
+
     public String stepName;
 
-    private Map<String, Long> stepToProcessingTime;
+    private Map<String, Tuple> stepToProcessingTime;
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
@@ -273,15 +298,8 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       this.workItemId = workItemId;
       this.workToken = workToken;
       this.contextActivationObserverRegistry = ContextActivationObserverRegistry.createDefault();
-      this.startTime = 0;
-      // TODO: handle end time correctly. if call getStartToFinish before end is set, throw an error?
-      this.endTime = 0;
       this.stepName = otherState.getStepName().userName();
       this.stepToProcessingTime = new HashMap<>();
-    }
-
-    public long getStartToFinishProcessingTimeInMillis() {
-      return this.endTime - this.startTime;
     }
 
     @Override
@@ -324,7 +342,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       super.takeSampleOnce(millisSinceLastSample);
     }
 
-    public Map<String, Long> getStepToProcessingTime() {
+    public Map<String, Tuple> getStepToProcessingTime() {
       return this.stepToProcessingTime;
     }
 
@@ -334,22 +352,25 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
       if (isDataflowProcessElementState) {
+        LOG.info("CLAIRE TEST entering state {} for workToken {}",
+            ((DataflowExecutionState) newState).getStepName().userName(), workToken);
         this.stepName = ((DataflowExecutionState) newState).getStepName().userName();
         // TODO: put this on the elementExecutionTracker below?
-        this.startTime = System.currentTimeMillis();
+        this.stepToProcessingTime.put(this.stepName, new Tuple(System.currentTimeMillis()));
         elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
-          LOG.info("CLAIRE TEST exiting state: {}",
-              ((DataflowExecutionState) newState).getStepName().userName());
+          String step = ((DataflowExecutionState) newState).getStepName().userName();
+          LOG.info("CLAIRE TEST exiting state {} for workToken {}", step
+              , workToken);
           elementExecutionTracker.exit();
-          this.endTime = System.currentTimeMillis();
-          if (((DataflowExecutionState) newState).getStepName().userName() != null) {
+          if (step != null) {
+            Tuple tuple = this.stepToProcessingTime.get(step);
+            tuple.setEndTime(System.currentTimeMillis());
             this.stepToProcessingTime.put(
-                ((DataflowExecutionState) newState).getStepName().userName(),
-                this.getStartToFinishProcessingTimeInMillis());
+                step, tuple);
           }
         }
         baseCloseable.close();
