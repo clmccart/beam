@@ -1311,7 +1311,7 @@ public class StreamingDataflowWorker {
                     ScopedProfiler.INSTANCE.emptyScope()),
                 stageInfo.deltaCounters,
                 options,
-                computationId);
+                DataflowWorkerLoggingMDC.getWorkId());
         StreamingModeExecutionContext context =
             new StreamingModeExecutionContext(
                 pendingDeltaCounters,

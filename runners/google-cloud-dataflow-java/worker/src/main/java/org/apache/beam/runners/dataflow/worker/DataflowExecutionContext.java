@@ -243,6 +243,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final ElementExecutionTracker elementExecutionTracker;
     private final DataflowOperationContext.DataflowExecutionState otherState;
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
+    // In the Streaming context, this will be the sharding key + work token.
     private final String workItemId;
 
     public DataflowExecutionStateTracker(
