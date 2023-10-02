@@ -28,6 +28,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import org.apache.avro.reflect.MapEntry;
+import org.apache.beam.repackaged.core.org.apache.commons.lang3.tuple.Pair;
 import org.apache.beam.runners.core.NullSideInputReader;
 import org.apache.beam.runners.core.SideInputReader;
 import org.apache.beam.runners.core.StepContext;
@@ -253,7 +256,20 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final String workItemId;
 
     // TODO: need to implement some type of cleanup mechanism.
+    // Key: user defined step name. Value: element's processing start time.
     private Map<String, ArrayList<Long>> processingTimesPerStep = new HashMap<>();
+    private Metadata activeMessageMetadata;
+
+    private static class Metadata {
+
+      public String userStepName;
+      public Long startTime;
+
+      public Metadata(String userStepName, Long startTime) {
+        this.userStepName = userStepName;
+        this.startTime = startTime;
+      }
+    }
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
@@ -302,27 +318,36 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       Closeable baseCloseable = super.enterState(newState);
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
-      String userStepName;
-      Long startTime;
-      if (isDataflowProcessElementState) {
+      if (isDataflowProcessElementState
+          && ((DataflowExecutionState) newState).getStepName() != null
+          && ((DataflowExecutionState) newState).getStepName().userName() != null) {
         DataflowExecutionState dfState = ((DataflowExecutionState) newState);
-        userStepName = dfState.getStepName().userName();
-        startTime = System.currentTimeMillis();
+        String userStepName = dfState.getStepName().userName();
+        if (this.activeMessageMetadata != null) {
+          if (!this.activeMessageMetadata.userStepName.equals(userStepName)) {
+            this.processingTimesPerStep.computeIfAbsent(
+                    this.activeMessageMetadata.userStepName, k -> new ArrayList<Long>())
+                .add(System.currentTimeMillis() - this.activeMessageMetadata.startTime);
+          }
+        }
+        this.activeMessageMetadata = new Metadata(userStepName,
+            System.currentTimeMillis());
         elementExecutionTracker.enter(dfState.getStepName());
         // can be exited when a new state is entered or when it's exited.
         // try adding to map here and closing it in exit. tracker needs access to currently active value.
-      } else {
-        startTime = null;
-        userStepName = null;
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
           elementExecutionTracker.exit();
-          this.processingTimesPerStep.computeIfAbsent(
-                  userStepName, k -> new ArrayList<Long>())
-              .add(System.currentTimeMillis() - startTime);
-          LOG.info("CLAIRE TEST processingTimesPerStep: {}", this.processingTimesPerStep);
+          if (this.activeMessageMetadata != null) {
+            this.processingTimesPerStep.computeIfAbsent(
+                    this.activeMessageMetadata.userStepName, k -> new ArrayList<Long>())
+                .add(System.currentTimeMillis() - this.activeMessageMetadata.startTime);
+            // this.activeMessageMetadata = null;
+            LOG.info("CLAIRE TEST processingTimesPerStep {}: {}", Thread.currentThread().getId(),
+                this.processingTimesPerStep);
+          }
         }
         baseCloseable.close();
       };
