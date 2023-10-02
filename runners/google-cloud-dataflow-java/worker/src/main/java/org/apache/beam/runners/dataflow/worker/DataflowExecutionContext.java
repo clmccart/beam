@@ -22,8 +22,10 @@ import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Pr
 import com.google.api.services.dataflow.model.SideInputInfo;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.beam.runners.core.NullSideInputReader;
@@ -47,6 +49,8 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Iterab
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.io.Closer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Execution context for the Dataflow worker. */
 @SuppressWarnings({
@@ -240,11 +244,16 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
    */
   public static class DataflowExecutionStateTracker extends ExecutionStateTracker {
 
+    private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateTracker.class);
+
     private final ElementExecutionTracker elementExecutionTracker;
     private final DataflowOperationContext.DataflowExecutionState otherState;
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
     // In the Streaming context, this will be the sharding key + work token.
     private final String workItemId;
+
+    // TODO: need to implement some type of cleanup mechanism.
+    private Map<String, ArrayList<Long>> processingTimesPerStep = new HashMap<>();
 
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
@@ -293,13 +302,27 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       Closeable baseCloseable = super.enterState(newState);
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
+      String userStepName;
+      Long startTime;
       if (isDataflowProcessElementState) {
-        elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
+        DataflowExecutionState dfState = ((DataflowExecutionState) newState);
+        userStepName = dfState.getStepName().userName();
+        startTime = System.currentTimeMillis();
+        elementExecutionTracker.enter(dfState.getStepName());
+        // can be exited when a new state is entered or when it's exited.
+        // try adding to map here and closing it in exit. tracker needs access to currently active value.
+      } else {
+        startTime = null;
+        userStepName = null;
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
           elementExecutionTracker.exit();
+          this.processingTimesPerStep.computeIfAbsent(
+                  userStepName, k -> new ArrayList<Long>())
+              .add(System.currentTimeMillis() - startTime);
+          LOG.info("CLAIRE TEST processingTimesPerStep: {}", this.processingTimesPerStep);
         }
         baseCloseable.close();
       };
