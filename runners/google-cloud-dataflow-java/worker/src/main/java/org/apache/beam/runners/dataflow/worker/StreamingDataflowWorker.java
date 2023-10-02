@@ -65,7 +65,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.core.metrics.MetricsLogger;
 import org.apache.beam.runners.dataflow.DataflowRunner;
@@ -406,7 +405,7 @@ public class StreamingDataflowWorker {
   private final ThreadFactory threadFactory;
   private DataflowMapTaskExecutorFactory mapTaskExecutorFactory;
 
-  private ExecutionStateSampler sampler;
+  private DataflowExecutionStateSampler sampler;
   private final BoundedQueueExecutor workUnitExecutor;
   private final WindmillServerStub windmillServer;
   private final Thread dispatchThread;
@@ -760,7 +759,7 @@ public class StreamingDataflowWorker {
     memoryMonitorThread.start();
     dispatchThread.start();
     commitThread.start();
-    sampler = ExecutionStateSampler.instance();
+    sampler = DataflowExecutionStateSampler.instance();
     sampler.start();
     // Periodically report workers counters and other updates.
     globalWorkerUpdatesTimer = executorSupplier.apply("GlobalWorkerUpdatesTimer");
@@ -1166,7 +1165,7 @@ public class StreamingDataflowWorker {
     }
 
     public Collection<Windmill.LatencyAttribution> getLatencyAttributions(
-        ExecutionStateSampler sampler) {
+        DataflowExecutionStateSampler sampler) {
       List<Windmill.LatencyAttribution> list = new ArrayList<>();
       for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
         Duration duration = totalDurationPerState.getOrDefault(state, Duration.ZERO);
@@ -1193,7 +1192,7 @@ public class StreamingDataflowWorker {
   }
 
   private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(
-      LatencyAttribution.Builder builder, Long workToken, ExecutionStateSampler sampler) {
+      LatencyAttribution.Builder builder, Long workToken, DataflowExecutionStateSampler sampler) {
     return builder;
   }
 
@@ -2167,7 +2166,7 @@ public class StreamingDataflowWorker {
    * age threshold is determined by
    * {@link StreamingDataflowWorkerOptions#getActiveWorkRefreshPeriodMillis}.
    */
-  private void refreshActiveWork(ExecutionStateSampler sampler) {
+  private void refreshActiveWork(DataflowExecutionStateSampler sampler) {
     Map<String, List<Windmill.KeyedGetDataRequest>> active = new HashMap<>();
     Instant refreshDeadline =
         clock.get().minus(Duration.millis(options.getActiveWorkRefreshPeriodMillis()));
@@ -2337,7 +2336,7 @@ public class StreamingDataflowWorker {
      * Adds any work started before the refreshDeadline to the GetDataRequest builder.
      */
     public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline,
-        ExecutionStateSampler sampler) {
+        DataflowExecutionStateSampler sampler) {
       List<Windmill.KeyedGetDataRequest> result = new ArrayList<>();
       synchronized (activeWork) {
         for (Map.Entry<ShardedKey, Deque<Work>> entry : activeWork.entrySet()) {
