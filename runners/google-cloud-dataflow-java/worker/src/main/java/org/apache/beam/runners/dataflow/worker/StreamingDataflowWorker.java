@@ -405,6 +405,8 @@ public class StreamingDataflowWorker {
 
   private final ThreadFactory threadFactory;
   private DataflowMapTaskExecutorFactory mapTaskExecutorFactory;
+
+  private ExecutionStateSampler sampler;
   private final BoundedQueueExecutor workUnitExecutor;
   private final WindmillServerStub windmillServer;
   private final Thread dispatchThread;
@@ -758,8 +760,8 @@ public class StreamingDataflowWorker {
     memoryMonitorThread.start();
     dispatchThread.start();
     commitThread.start();
-    ExecutionStateSampler.instance().start();
-
+    sampler = ExecutionStateSampler.instance();
+    sampler.start();
     // Periodically report workers counters and other updates.
     globalWorkerUpdatesTimer = executorSupplier.apply("GlobalWorkerUpdatesTimer");
     globalWorkerUpdatesTimer.scheduleWithFixedDelay(
@@ -775,7 +777,7 @@ public class StreamingDataflowWorker {
             @Override
             public void run() {
               try {
-                refreshActiveWork();
+                refreshActiveWork(sampler);
               } catch (RuntimeException e) {
                 LOG.warn("Failed to refresh active work: ", e);
               }
@@ -1163,7 +1165,8 @@ public class StreamingDataflowWorker {
       }
     }
 
-    public Collection<Windmill.LatencyAttribution> getLatencyAttributions() {
+    public Collection<Windmill.LatencyAttribution> getLatencyAttributions(
+        ExecutionStateSampler sampler) {
       List<Windmill.LatencyAttribution> list = new ArrayList<>();
       for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
         Duration duration = totalDurationPerState.getOrDefault(state, Duration.ZERO);
@@ -1173,14 +1176,25 @@ public class StreamingDataflowWorker {
         if (duration.equals(Duration.ZERO)) {
           continue;
         }
-        list.add(
-            Windmill.LatencyAttribution.newBuilder()
-                .setState(state)
-                .setTotalDurationMillis(duration.getMillis())
-                .build());
+        LatencyAttribution.Builder laBuilder = Windmill.LatencyAttribution.newBuilder();
+        if (state == LatencyAttribution.State.ACTIVE) {
+          // add step breakdown
+          laBuilder = addActiveLatencyBreakdownToBuilder(laBuilder,
+              workItem.getWorkToken(), sampler);
+        }
+        Windmill.LatencyAttribution la = laBuilder
+            .setState(state)
+            .setTotalDurationMillis(duration.getMillis())
+            .build();
+        list.add(la);
       }
       return list;
     }
+  }
+
+  private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(
+      LatencyAttribution.Builder builder, Long workToken, ExecutionStateSampler sampler) {
+    return builder;
   }
 
   /**
@@ -1460,7 +1474,7 @@ public class StreamingDataflowWorker {
 
       // Add the output to the commit queue.
       work.setState(State.COMMIT_QUEUED);
-      outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions());
+      outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions(sampler));
 
       WorkItemCommitRequest commitRequest = outputBuilder.build();
       int byteLimit = maxWorkItemCommitBytes;
@@ -2149,17 +2163,17 @@ public class StreamingDataflowWorker {
   /**
    * Sends a GetData request to Windmill for all sufficiently old active work.
    *
-   * <p>This informs Windmill that processing is ongoing and the work should not be retried. The age
-   * threshold is determined by {@link
-   * StreamingDataflowWorkerOptions#getActiveWorkRefreshPeriodMillis}.
+   * <p>This informs Windmill that processing is ongoing and the work should not be retried. The
+   * age threshold is determined by
+   * {@link StreamingDataflowWorkerOptions#getActiveWorkRefreshPeriodMillis}.
    */
-  private void refreshActiveWork() {
+  private void refreshActiveWork(ExecutionStateSampler sampler) {
     Map<String, List<Windmill.KeyedGetDataRequest>> active = new HashMap<>();
     Instant refreshDeadline =
         clock.get().minus(Duration.millis(options.getActiveWorkRefreshPeriodMillis()));
 
     for (Map.Entry<String, ComputationState> entry : computationMap.entrySet()) {
-      active.put(entry.getKey(), entry.getValue().getKeysToRefresh(refreshDeadline));
+      active.put(entry.getKey(), entry.getValue().getKeysToRefresh(refreshDeadline, sampler));
     }
 
     metricTrackingWindmillServer.refreshActiveWork(active);
@@ -2319,8 +2333,11 @@ public class StreamingDataflowWorker {
       }
     }
 
-    /** Adds any work started before the refreshDeadline to the GetDataRequest builder. */
-    public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline) {
+    /**
+     * Adds any work started before the refreshDeadline to the GetDataRequest builder.
+     */
+    public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline,
+        ExecutionStateSampler sampler) {
       List<Windmill.KeyedGetDataRequest> result = new ArrayList<>();
       synchronized (activeWork) {
         for (Map.Entry<ShardedKey, Deque<Work>> entry : activeWork.entrySet()) {
@@ -2332,7 +2349,7 @@ public class StreamingDataflowWorker {
                       .setKey(shardedKey.key())
                       .setShardingKey(shardedKey.shardingKey())
                       .setWorkToken(work.getWorkItem().getWorkToken())
-                      .addAllLatencyAttribution(work.getLatencyAttributions())
+                      .addAllLatencyAttribution(work.getLatencyAttributions(sampler))
                       .build());
             }
           }
