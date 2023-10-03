@@ -18,7 +18,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   // private Map<String, IntSummaryStatistics> summaryStats = new HashMap<>();
 
-  private Map<String, ArrayList<Long>> summaryStats = new HashMap<>();
+  private Map<String, IntSummaryStatistics> summaryStats = new HashMap<>();
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
   // protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
@@ -49,12 +49,13 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     LOG.info("CLAIRE TEST removing tracker {} {}",
         dfTracker.getActiveMessageMetadata().userStepName,
         System.currentTimeMillis() - dfTracker.getActiveMessageMetadata().startTime);
-    for (Entry<String, ArrayList<Long>> steps : dfTracker.getProcessingTimesPerStep().entrySet()) {
+    for (Entry<String, IntSummaryStatistics> steps : dfTracker.getProcessingTimesPerStep()
+        .entrySet()) {
       summaryStats.compute(steps.getKey(), (k, v) -> {
         if (v == null) {
           return steps.getValue();
         }
-        v.addAll(steps.getValue());
+        v.combine(steps.getValue());
         return v;
       });
     }

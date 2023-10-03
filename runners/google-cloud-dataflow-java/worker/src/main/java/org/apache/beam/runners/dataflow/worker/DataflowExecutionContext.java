@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IntSummaryStatistics;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -257,11 +258,11 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
     // TODO: need to implement some type of cleanup mechanism.
     // Key: user defined step name. Value: element's processing start time.
-    private Map<String, ArrayList<Long>> processingTimesPerStep = new HashMap<>();
+    private Map<String, IntSummaryStatistics> processingTimesPerStep = new HashMap<>();
     // TODO: have to remove this from active and put in map on deactivation.
     private Metadata activeMessageMetadata;
 
-    public Map<String, ArrayList<Long>> getProcessingTimesPerStep() {
+    public Map<String, IntSummaryStatistics> getProcessingTimesPerStep() {
       return processingTimesPerStep;
     }
 
@@ -334,9 +335,15 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
         String userStepName = dfState.getStepName().userName();
         if (this.activeMessageMetadata != null) {
           if (!this.activeMessageMetadata.userStepName.equals(userStepName)) {
-            this.processingTimesPerStep.computeIfAbsent(
-                    this.activeMessageMetadata.userStepName, k -> new ArrayList<Long>())
-                .add(System.currentTimeMillis() - this.activeMessageMetadata.startTime);
+            this.processingTimesPerStep.compute(
+                this.activeMessageMetadata.userStepName, (k, v) -> {
+                  if (v == null) {
+                    v = new IntSummaryStatistics();
+                  }
+                  v.accept(
+                      (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
+                  return v;
+                });
           }
         }
         this.activeMessageMetadata = new Metadata(userStepName,
@@ -350,9 +357,15 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
         if (isDataflowProcessElementState) {
           elementExecutionTracker.exit();
           if (this.activeMessageMetadata != null) {
-            this.processingTimesPerStep.computeIfAbsent(
-                    this.activeMessageMetadata.userStepName, k -> new ArrayList<Long>())
-                .add(System.currentTimeMillis() - this.activeMessageMetadata.startTime);
+            this.processingTimesPerStep.compute(
+                this.activeMessageMetadata.userStepName, (k, v) -> {
+                  if (v == null) {
+                    v = new IntSummaryStatistics();
+                  }
+                  v.accept(
+                      (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
+                  return v;
+                });
             // this.activeMessageMetadata = null;
             LOG.info("CLAIRE TEST processingTimesPerStep {}: {}", Thread.currentThread().getId(),
                 this.processingTimesPerStep);
