@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -72,6 +73,7 @@ import org.apache.beam.runners.dataflow.internal.CustomSources;
 import org.apache.beam.runners.dataflow.options.DataflowWorkerHarnessOptions;
 import org.apache.beam.runners.dataflow.util.CloudObject;
 import org.apache.beam.runners.dataflow.util.CloudObjects;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingPerStageSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.StreamingDataflowWorker.Work.State;
@@ -1178,6 +1180,7 @@ public class StreamingDataflowWorker {
         LatencyAttribution.Builder laBuilder = Windmill.LatencyAttribution.newBuilder();
         if (state == LatencyAttribution.State.ACTIVE) {
           // add step breakdown
+          // TODO: are these values getting duplicated across keys?
           laBuilder = addActiveLatencyBreakdownToBuilder(laBuilder,
               workItem.getWorkToken(), sampler);
         }
@@ -1193,6 +1196,14 @@ public class StreamingDataflowWorker {
 
   private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(
       LatencyAttribution.Builder builder, Long workToken, DataflowExecutionStateSampler sampler) {
+    Set<DataflowExecutionStateTracker> dfTrackers = sampler.getActiveTrackersForWorkId(
+        workToken.toString());
+    for (DataflowExecutionStateTracker tracker : dfTrackers) {
+      LOG.info("CLAIRE TEST processing times {}", tracker.getProcessingTimesPerStep());
+      DataflowExecutionStateTracker.Metadata activeMessage = tracker.getActiveMessageMetadata();
+      LOG.info("CLAIRE TEST active message {}, {}", activeMessage.userStepName,
+          System.currentTimeMillis() - activeMessage.startTime);
+    }
     return builder;
   }
 
@@ -1311,12 +1322,12 @@ public class StreamingDataflowWorker {
                     node ->
                         node instanceof ParallelInstructionNode
                             && ((ParallelInstructionNode) node).getParallelInstruction().getRead()
-                                != null);
+                            != null);
         InstructionOutputNode readOutputNode =
             (InstructionOutputNode) Iterables.getOnlyElement(mapTaskNetwork.successors(readNode));
         DataflowExecutionContext.DataflowExecutionStateTracker executionStateTracker =
             new DataflowExecutionContext.DataflowExecutionStateTracker(
-                ExecutionStateSampler.instance(),
+                this.sampler,
                 stageInfo.executionStateRegistry.getState(
                     NameContext.forStage(mapTask.getStageName()),
                     "other",
