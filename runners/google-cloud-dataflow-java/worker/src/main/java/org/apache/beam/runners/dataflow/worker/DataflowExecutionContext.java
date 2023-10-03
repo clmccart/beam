@@ -258,9 +258,18 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     // TODO: need to implement some type of cleanup mechanism.
     // Key: user defined step name. Value: element's processing start time.
     private Map<String, ArrayList<Long>> processingTimesPerStep = new HashMap<>();
+    // TODO: have to remove this from active and put in map on deactivation.
     private Metadata activeMessageMetadata;
 
-    private static class Metadata {
+    public Map<String, ArrayList<Long>> getProcessingTimesPerStep() {
+      return processingTimesPerStep;
+    }
+
+    public Metadata getActiveMessageMetadata() {
+      return activeMessageMetadata;
+    }
+
+    public static class Metadata {
 
       public String userStepName;
       public Long startTime;

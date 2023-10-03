@@ -1,15 +1,25 @@
 package org.apache.beam.runners.dataflow.worker;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IntSummaryStatistics;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.joda.time.DateTimeUtils.MillisProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
-  // private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
+  // private Map<String, IntSummaryStatistics> summaryStats = new HashMap<>();
+
+  private Map<String, ArrayList<Long>> summaryStats = new HashMap<>();
+  private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
   // protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
 
@@ -34,6 +44,21 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   @Override
   public void removeTracker(ExecutionStateTracker tracker) {
+    // TODO: when removing, add processing times.
+    DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+    LOG.info("CLAIRE TEST removing tracker {} {}",
+        dfTracker.getActiveMessageMetadata().userStepName,
+        System.currentTimeMillis() - dfTracker.getActiveMessageMetadata().startTime);
+    for (Entry<String, ArrayList<Long>> steps : dfTracker.getProcessingTimesPerStep().entrySet()) {
+      summaryStats.compute(steps.getKey(), (k, v) -> {
+        if (v == null) {
+          return steps.getValue();
+        }
+        v.addAll(steps.getValue());
+        return v;
+      });
+    }
+    LOG.info("CLAIRE TEST summaryStats: {}", summaryStats);
     activeTrackers.remove(tracker);
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
