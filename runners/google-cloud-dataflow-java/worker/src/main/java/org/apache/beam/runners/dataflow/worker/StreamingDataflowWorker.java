@@ -43,6 +43,7 @@ import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IntSummaryStatistics;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,7 @@ import org.apache.beam.runners.dataflow.options.DataflowWorkerHarnessOptions;
 import org.apache.beam.runners.dataflow.util.CloudObject;
 import org.apache.beam.runners.dataflow.util.CloudObjects;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker.Metadata;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingPerStageSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.StreamingDataflowWorker.Work.State;
@@ -105,6 +107,8 @@ import org.apache.beam.runners.dataflow.worker.util.common.worker.OutputObjectAn
 import org.apache.beam.runners.dataflow.worker.util.common.worker.ReadOperation;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution;
+import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown;
+import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown.ActiveMessageMetadata;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.WorkItemCommitRequest;
 import org.apache.beam.runners.dataflow.worker.windmill.WindmillServerStub;
 import org.apache.beam.runners.dataflow.worker.windmill.WindmillStream.CommitWorkStream;
@@ -1182,7 +1186,7 @@ public class StreamingDataflowWorker {
           // add step breakdown
           // TODO: are these values getting duplicated across keys?
           laBuilder = addActiveLatencyBreakdownToBuilder(laBuilder,
-              workItem.getWorkToken(), sampler);
+              DataflowWorkerLoggingMDC.getWorkId(), sampler);
         }
         Windmill.LatencyAttribution la = laBuilder
             .setState(state)
@@ -1195,16 +1199,48 @@ public class StreamingDataflowWorker {
   }
 
   private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(
-      LatencyAttribution.Builder builder, Long workToken, DataflowExecutionStateSampler sampler) {
+      LatencyAttribution.Builder builder, String workId, DataflowExecutionStateSampler sampler) {
+    // TODO: put this all under a sampler interface.
     Set<DataflowExecutionStateTracker> dfTrackers = sampler.getActiveTrackersForWorkId(
-        workToken.toString());
+        workId);
+    LOG.info("CLAIRE TEST in dfTrackers: {}",
+        dfTrackers.size()); // TODO(clairemccarthy): look to see if this is ever more than 1.
+// get any active trackers (should only be one?)
+    // add to active message breakdown and finished
+
+    // get any finished trackers still in the sampler
     for (DataflowExecutionStateTracker tracker : dfTrackers) {
-      LOG.info("CLAIRE TEST processing times {}", tracker.getProcessingTimesPerStep());
-      DataflowExecutionStateTracker.Metadata activeMessage = tracker.getActiveMessageMetadata();
-      LOG.info("CLAIRE TEST active message {}, {}", activeMessage.userStepName,
-          System.currentTimeMillis() - activeMessage.startTime);
+      LOG.info("CLAIRE TEST {} tracker finished: {}", Thread.currentThread().getId(),
+          tracker.getProcessingTimesPerStep());
+      addActiveMessageBreakdownToBuilder(tracker,
+          builder.addActiveLatencyBreakdownBuilder());
+
+      // TODO: add for finished trackers.
+
     }
+    LOG.info("CLAIRE TEST {} builder: {}", Thread.currentThread().getId(), builder);
     return builder;
+  }
+
+  private static void addActiveMessageBreakdownToBuilder(
+      DataflowExecutionStateTracker tracker, ActiveLatencyBreakdown.Builder breakdownBuilder) {
+    Metadata activeMsg = tracker.getActiveMessageMetadata();
+    breakdownBuilder.setUserStepName(activeMsg.userStepName);
+    breakdownBuilder.setActiveMessageMetadata(
+        ActiveLatencyBreakdown.ActiveMessageMetadata.newBuilder().setProcessingTimeMillis(
+            System.currentTimeMillis() - activeMsg.startTime).build());
+    // TODO: get historical processing times for that step from removed trackers too
+    if (tracker.getProcessingTimesPerStep().containsKey(activeMsg.userStepName)) {
+      LOG.info("CLAIRE TEST adding historical");
+      // TODO: never end up here. check why.
+      IntSummaryStatistics summaryStats = tracker.getProcessingTimesPerStep()
+          .get(activeMsg.userStepName);
+      breakdownBuilder.setProcessingTimesDistribution(
+          ActiveLatencyBreakdown.Distribution.newBuilder().setCount(summaryStats.getCount())
+              .setSum(summaryStats.getSum()).setMin(summaryStats.getMin()).setMax(
+                  summaryStats.getMax()).setMean((long) summaryStats.getAverage()).build());
+    }
+    // return breakdownBuilder;
   }
 
   /**
