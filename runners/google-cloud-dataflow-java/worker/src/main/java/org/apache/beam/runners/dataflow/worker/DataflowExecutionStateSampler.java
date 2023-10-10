@@ -92,7 +92,11 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   }
 
   public Metadata getActiveMessageMetadataForWorkId(String workId) {
-    // TODO: implement
+    if (trackersPerWorkId.containsKey(workId)) {
+      DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
+      return tracker.getActiveMessageMetadata();
+    }
+    // TODO: consider making this return an optional
     return new Metadata("", 0L);
   }
 
