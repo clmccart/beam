@@ -35,6 +35,9 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   private static final DataflowExecutionStateSampler INSTANCE =
       new DataflowExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
+  private Map<String, DataflowExecutionStateTracker> trackersPerWorkId = new HashMap<>();
+
+
   public static DataflowExecutionStateSampler instance() {
     return INSTANCE;
   }
@@ -80,7 +83,11 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   public Map<String, IntSummaryStatistics> getProcessingDistributionsForWorkId(
       String workId) {
-    // TODO: implement
+    if (trackersPerWorkId.containsKey(workId)) {
+      DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
+      return tracker.getProcessingTimesPerStep();
+    }
+    // TODO: consider making this return an optional
     return new HashMap<>();
   }
 
@@ -99,5 +106,19 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       }
     }
     return trackersForWorkId;
+  }
+
+  @Override
+  public void doSampling(long millisSinceLastSample) {
+    updateTrackerMonitoringMap();
+    super.doSampling(millisSinceLastSample);
+  }
+
+  private void updateTrackerMonitoringMap() {
+    for (ExecutionStateTracker tracker : activeTrackers) {
+      DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+      // TODO: i think this will result in duplicating trackers?
+      trackersPerWorkId.put(dfTracker.getWorkItemId(), dfTracker);
+    }
   }
 }
