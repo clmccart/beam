@@ -1656,6 +1656,7 @@ public class StreamingDataflowWorker {
         stageInfo.timerProcessingMsecs.addValue(processingTimeMsecs);
       }
 
+      this.sampler.clearMapsForWorkId(DataflowWorkerLoggingMDC.getWorkId());
       DataflowWorkerLoggingMDC.setWorkId(null);
       DataflowWorkerLoggingMDC.setStageName(null);
     }

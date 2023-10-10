@@ -91,6 +91,10 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     return new HashMap<>();
   }
 
+  public void clearMapsForWorkId(String workId) {
+    trackersPerWorkId.remove(workId);
+  }
+
   public Metadata getActiveMessageMetadataForWorkId(String workId) {
     if (trackersPerWorkId.containsKey(workId)) {
       DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
