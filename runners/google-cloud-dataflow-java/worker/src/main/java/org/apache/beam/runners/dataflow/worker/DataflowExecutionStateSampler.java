@@ -10,6 +10,7 @@ import java.util.Set;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker.Metadata;
 import org.joda.time.DateTimeUtils.MillisProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,17 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     if (millisSinceLastSample > 0) {
       tracker.takeSample(millisSinceLastSample);
     }
+  }
+
+  public Map<String, IntSummaryStatistics> getProcessingDistributionsForWorkId(
+      String workId) {
+    // TODO: implement
+    return new HashMap<>();
+  }
+
+  public Metadata getActiveMessageMetadataForWorkId(String workId) {
+    // TODO: implement
+    return new Metadata("", 0L);
   }
 
   public Set<DataflowExecutionStateTracker> getActiveTrackersForWorkId(String id) {
