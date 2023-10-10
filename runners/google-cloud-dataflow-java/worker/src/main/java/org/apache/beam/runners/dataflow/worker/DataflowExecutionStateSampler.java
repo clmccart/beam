@@ -17,9 +17,6 @@ import org.slf4j.LoggerFactory;
 
 public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
-  // private Map<String, IntSummaryStatistics> summaryStats = new HashMap<>();
-
-  private Map<String, IntSummaryStatistics> summaryStats = new HashMap<>();
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
   // protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
@@ -35,7 +32,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   private static final DataflowExecutionStateSampler INSTANCE =
       new DataflowExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
-  private Map<String, DataflowExecutionStateTracker> trackersPerWorkId = new HashMap<>();
+  private final Map<String, Map<String, IntSummaryStatistics>> removedProcessingMetrics = new HashMap<>();
+  private final Map<String, DataflowExecutionStateTracker> trackersPerWorkId = new HashMap<>();
 
 
   public static DataflowExecutionStateSampler instance() {
@@ -50,20 +48,27 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   public void removeTracker(ExecutionStateTracker tracker) {
     // TODO: when removing, add processing times.
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    LOG.info("CLAIRE TEST removing tracker {} {}",
-        dfTracker.getActiveMessageMetadata().userStepName,
-        System.currentTimeMillis() - dfTracker.getActiveMessageMetadata().startTime);
-    for (Entry<String, IntSummaryStatistics> steps : dfTracker.getProcessingTimesPerStep()
-        .entrySet()) {
-      summaryStats.compute(steps.getKey(), (k, v) -> {
-        if (v == null) {
-          return steps.getValue();
-        }
-        v.combine(steps.getValue());
-        return v;
-      });
+    LOG.info("CLAIRE TEST {} removing tracker {} {}",
+        Thread.currentThread().getId(), dfTracker.getWorkItemId(),
+        dfTracker.getProcessingTimesPerStep());
+    // TODO: need to handle situation where there is an active message still.
+    synchronized (removedProcessingMetrics) {
+      Map<String, IntSummaryStatistics> summaryStats = removedProcessingMetrics.getOrDefault(
+          dfTracker.getWorkItemId(), new HashMap<>());
+      for (Entry<String, IntSummaryStatistics> steps : dfTracker.getProcessingTimesPerStep()
+          .entrySet()) {
+        summaryStats.compute(steps.getKey(), (k, v) -> {
+          if (v == null) {
+            return steps.getValue();
+          }
+          v.combine(steps.getValue());
+          return v;
+        });
+      }
+      removedProcessingMetrics.put(dfTracker.getWorkItemId(), summaryStats);
+      LOG.info("CLAIRE TEST {} removedProcessingMetrics: {}", Thread.currentThread().getId(),
+          removedProcessingMetrics);
     }
-    LOG.info("CLAIRE TEST summaryStats: {}", summaryStats);
     activeTrackers.remove(tracker);
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
@@ -92,7 +97,12 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   }
 
   public void clearMapsForWorkId(String workId) {
-    trackersPerWorkId.remove(workId);
+    synchronized (trackersPerWorkId) {
+      trackersPerWorkId.remove(workId);
+    }
+    synchronized (removedProcessingMetrics) {
+      removedProcessingMetrics.remove(workId);
+    }
   }
 
   public Metadata getActiveMessageMetadataForWorkId(String workId) {
