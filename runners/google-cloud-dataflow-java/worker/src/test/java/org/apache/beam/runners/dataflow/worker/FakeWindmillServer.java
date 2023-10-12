@@ -140,7 +140,7 @@ class FakeWindmillServer extends WindmillServerStub {
 
   @Override
   public Windmill.GetDataResponse getData(Windmill.GetDataRequest request) {
-    LOG.info("getDataRequest: {}", request.toString());
+    // LOG.info("getDataRequest: {}", request.toString());
     validateGetDataRequest(request);
     ++numGetDataRequests;
     GetDataResponse response = dataToOffer.getOrDefault(request);

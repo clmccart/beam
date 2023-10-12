@@ -267,8 +267,6 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     }
 
     public Metadata getActiveMessageMetadata() {
-      LOG.info("CLAIRE TEST {} historical: {}", Thread.currentThread().getId(),
-          processingTimesPerStep);
       return activeMessageMetadata;
     }
 

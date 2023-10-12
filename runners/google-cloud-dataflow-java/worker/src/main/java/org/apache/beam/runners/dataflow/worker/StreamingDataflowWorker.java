@@ -1205,6 +1205,9 @@ public class StreamingDataflowWorker {
     // info we need: for each step, historical processing distribution, active message if there is one.
     Map<String, IntSummaryStatistics> processingDistributionsPerStep = sampler.getProcessingDistributionsForWorkId(
         workId);
+    LOG.info("CLAIRE TEST {} processingDistributionsPerStep for workId {}: {}",
+        Thread.currentThread().getId(), workId,
+        processingDistributionsPerStep);
     Metadata activeMessage = sampler.getActiveMessageMetadataForWorkId(workId);
     for (Entry<String, IntSummaryStatistics> entry : processingDistributionsPerStep.entrySet()) {
       ActiveLatencyBreakdown.Builder stepBuilder = ActiveLatencyBreakdown.newBuilder();
@@ -1223,7 +1226,6 @@ public class StreamingDataflowWorker {
       }
       builder.addActiveLatencyBreakdown(stepBuilder.build());
     }
-
     LOG.info("CLAIRE TEST {} builder: {}", Thread.currentThread().getId(), builder);
     return builder;
   }
@@ -1318,6 +1320,10 @@ public class StreamingDataflowWorker {
     work.setState(State.PROCESSING);
     {
       StringBuilder workIdBuilder = new StringBuilder(33);
+      LOG.info("CLAIRE TEST shardingkey: {} to hex string: {}", workItem.getShardingKey(),
+          Long.toHexString(workItem.getShardingKey()));
+      LOG.info("CLAIRE TEST worktoken: {} to hex string: {}", workItem.getWorkToken(),
+          Long.toHexString(workItem.getWorkToken()));
       workIdBuilder.append(Long.toHexString(workItem.getShardingKey()));
       workIdBuilder.append('-');
       workIdBuilder.append(Long.toHexString(workItem.getWorkToken()));
@@ -1529,6 +1535,7 @@ public class StreamingDataflowWorker {
       outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions(sampler));
 
       WorkItemCommitRequest commitRequest = outputBuilder.build();
+      LOG.info("CLAIRE TEST commitRequest: {}", commitRequest);
       int byteLimit = maxWorkItemCommitBytes;
       int commitSize = commitRequest.getSerializedSize();
       int estimatedCommitSize = commitSize < 0 ? Integer.MAX_VALUE : commitSize;
