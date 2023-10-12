@@ -44,6 +44,21 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     super(clock);
   }
 
+  public Map<String, IntSummaryStatistics> mergeStepStatsMaps(
+      Map<String, IntSummaryStatistics> map1, Map<String, IntSummaryStatistics> map2) {
+    for (Entry<String, IntSummaryStatistics> steps : map2
+        .entrySet()) {
+      map1.compute(steps.getKey(), (k, v) -> {
+        if (v == null) {
+          return steps.getValue();
+        }
+        v.combine(steps.getValue());
+        return v;
+      });
+    }
+    return map1;
+  }
+
   @Override
   public void removeTracker(ExecutionStateTracker tracker) {
     // TODO: when removing, add processing times.
@@ -53,19 +68,9 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
         dfTracker.getProcessingTimesPerStep());
     // TODO: need to handle situation where there is an active message still.
     synchronized (removedProcessingMetrics) {
-      Map<String, IntSummaryStatistics> summaryStats = removedProcessingMetrics.getOrDefault(
-          dfTracker.getWorkItemId(), new HashMap<>());
-      for (Entry<String, IntSummaryStatistics> steps : dfTracker.getProcessingTimesPerStep()
-          .entrySet()) {
-        summaryStats.compute(steps.getKey(), (k, v) -> {
-          if (v == null) {
-            return steps.getValue();
-          }
-          v.combine(steps.getValue());
-          return v;
-        });
-      }
-      removedProcessingMetrics.put(dfTracker.getWorkItemId(), summaryStats);
+      removedProcessingMetrics.put(dfTracker.getWorkItemId(),
+          mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(
+              dfTracker.getWorkItemId(), new HashMap<>()), dfTracker.getProcessingTimesPerStep()));
       LOG.info("CLAIRE TEST {} removedProcessingMetrics: {}", Thread.currentThread().getId(),
           removedProcessingMetrics);
     }
@@ -90,7 +95,10 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       String workId) {
     if (trackersPerWorkId.containsKey(workId)) {
       DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
-      return tracker.getProcessingTimesPerStep();
+      LOG.info("CLAIRE TEST {} removedmetrics for workId {}: {}", Thread.currentThread().getId(),
+          workId, removedProcessingMetrics.get(workId));
+      return mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
+          tracker.getProcessingTimesPerStep());
     }
     // TODO: consider making this return an optional
     return new HashMap<>();
