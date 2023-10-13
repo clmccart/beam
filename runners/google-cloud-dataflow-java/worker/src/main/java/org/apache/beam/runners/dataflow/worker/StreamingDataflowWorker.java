@@ -1218,7 +1218,7 @@ public class StreamingDataflowWorker {
               .getMax()).setMean((long) entry.getValue().getAverage())
           .setSum(entry.getValue().getSum());
       stepBuilder.setProcessingTimesDistribution(distributionBuilder.build());
-      if (activeMessage.userStepName.equals(entry.getKey())) {
+      if (activeMessage != null && activeMessage.userStepName.equals(entry.getKey())) {
         ActiveMessageMetadata.Builder activeMsgBuilder = ActiveMessageMetadata.newBuilder();
         activeMsgBuilder.setProcessingTimeMillis(
             System.currentTimeMillis() - activeMessage.startTime);

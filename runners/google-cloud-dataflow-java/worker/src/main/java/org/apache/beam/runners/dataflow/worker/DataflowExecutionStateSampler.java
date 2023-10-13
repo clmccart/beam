@@ -75,6 +75,9 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       LOG.info("CLAIRE TEST {} removedProcessingMetrics: {}", Thread.currentThread().getId(),
           removedProcessingMetrics);
     }
+    synchronized (trackersPerWorkId) {
+      trackersPerWorkId.remove(dfTracker.getWorkItemId());
+    }
     activeTrackers.remove(tracker);
 
     // DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
@@ -96,10 +99,16 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       String workId) {
     if (trackersPerWorkId.containsKey(workId)) {
       DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
-      LOG.info("CLAIRE TEST {} removedmetrics for workId {}: {}", Thread.currentThread().getId(),
-          workId, removedProcessingMetrics.get(workId));
-      return mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
-          tracker.getProcessingTimesPerStep());
+      if (activeTrackers.contains(tracker)) {
+        LOG.info("CLAIRE TEST {} removedmetrics for workId {}: {}", Thread.currentThread().getId(),
+            workId, removedProcessingMetrics.get(workId));
+        LOG.info("CLAIRE TEST {} tracker.getProcessingTimes {}", Thread.currentThread().getId(),
+            tracker.getProcessingTimesPerStep());
+        return mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
+            tracker.getProcessingTimesPerStep());
+      }
+    } else {
+      return removedProcessingMetrics.getOrDefault(workId, new HashMap<>());
     }
     // TODO: consider making this return an optional
     return new HashMap<>();

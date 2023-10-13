@@ -324,6 +324,9 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     }
 
     public void recordActiveMessageInProcessingTimesMap() {
+      if (this.activeMessageMetadata == null) {
+        return;
+      }
       this.processingTimesPerStep.compute(
           this.activeMessageMetadata.userStepName, (k, v) -> {
             if (v == null) {
@@ -347,6 +350,9 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
         String userStepName = dfState.getStepName().userName();
         if (this.activeMessageMetadata != null) {
           if (!this.activeMessageMetadata.userStepName.equals(userStepName)) {
+            LOG.info(
+                "CLAIRE TEST {} recording processing time for step {} during active transition",
+                Thread.currentThread().getId(), this.activeMessageMetadata.userStepName);
             recordActiveMessageInProcessingTimesMap();
           }
         }
@@ -361,18 +367,11 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
         if (isDataflowProcessElementState) {
           elementExecutionTracker.exit();
           if (this.activeMessageMetadata != null) {
-            this.processingTimesPerStep.compute(
-                this.activeMessageMetadata.userStepName, (k, v) -> {
-                  if (v == null) {
-                    v = new IntSummaryStatistics();
-                  }
-                  v.accept(
-                      (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
-                  return v;
-                });
-            // this.activeMessageMetadata = null;
-            LOG.info("CLAIRE TEST processingTimesPerStep {}: {}", Thread.currentThread().getId(),
-                this.processingTimesPerStep);
+            LOG.info(
+                "CLAIRE TEST {} recording processing time for step {} during passive transition",
+                Thread.currentThread().getId(), this.activeMessageMetadata.userStepName);
+            recordActiveMessageInProcessingTimesMap();
+            this.activeMessageMetadata = null;
           }
         }
         baseCloseable.close();
