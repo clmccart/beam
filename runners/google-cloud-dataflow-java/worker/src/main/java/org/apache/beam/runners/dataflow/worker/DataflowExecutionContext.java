@@ -323,6 +323,18 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       super.takeSampleOnce(millisSinceLastSample);
     }
 
+    public void recordActiveMessageInProcessingTimesMap() {
+      this.processingTimesPerStep.compute(
+          this.activeMessageMetadata.userStepName, (k, v) -> {
+            if (v == null) {
+              v = new IntSummaryStatistics();
+            }
+            v.accept(
+                (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
+            return v;
+          });
+    }
+
     @Override
     public Closeable enterState(ExecutionState newState) {
       Closeable baseCloseable = super.enterState(newState);
@@ -335,15 +347,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
         String userStepName = dfState.getStepName().userName();
         if (this.activeMessageMetadata != null) {
           if (!this.activeMessageMetadata.userStepName.equals(userStepName)) {
-            this.processingTimesPerStep.compute(
-                this.activeMessageMetadata.userStepName, (k, v) -> {
-                  if (v == null) {
-                    v = new IntSummaryStatistics();
-                  }
-                  v.accept(
-                      (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
-                  return v;
-                });
+            recordActiveMessageInProcessingTimesMap();
           }
         }
         this.activeMessageMetadata = new Metadata(userStepName,

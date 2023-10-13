@@ -66,7 +66,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     LOG.info("CLAIRE TEST {} removing tracker {} {}",
         Thread.currentThread().getId(), dfTracker.getWorkItemId(),
         dfTracker.getProcessingTimesPerStep());
-    // TODO: need to handle situation where there is an active message still.
+    // need to handle situation where there is an active message still.
+    dfTracker.recordActiveMessageInProcessingTimesMap();
     synchronized (removedProcessingMetrics) {
       removedProcessingMetrics.put(dfTracker.getWorkItemId(),
           mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(
