@@ -47,7 +47,7 @@ public class ExecutionStateSampler {
   private final MillisProvider clock;
   @VisibleForTesting volatile long lastSampleTimeMillis;
 
-  private ExecutionStateSampler(MillisProvider clock) {
+  protected ExecutionStateSampler(MillisProvider clock) {
     this.clock = clock;
   }
 
@@ -151,8 +151,10 @@ public class ExecutionStateSampler {
     this.activeTrackers.add(tracker);
   }
 
-  /** Remove the tracker from the sampling set. */
-  void removeTracker(ExecutionStateTracker tracker) {
+  /**
+   * Remove the tracker from the sampling set.
+   */
+  protected void removeTracker(ExecutionStateTracker tracker) {
     activeTrackers.remove(tracker);
 
     // Attribute any remaining time since the last sampling while removing the tracker.
