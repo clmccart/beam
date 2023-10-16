@@ -37,7 +37,7 @@ import org.joda.time.DateTimeUtils.MillisProvider;
 /** Monitors the execution of one or more execution threads. */
 public class ExecutionStateSampler {
 
-  private final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
+  protected final Set<ExecutionStateTracker> activeTrackers = ConcurrentHashMap.newKeySet();
 
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 

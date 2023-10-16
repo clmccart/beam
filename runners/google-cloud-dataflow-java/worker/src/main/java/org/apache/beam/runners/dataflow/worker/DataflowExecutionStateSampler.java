@@ -16,6 +16,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       new DataflowExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
   private Map<String, Map<String, IntSummaryStatistics>> completedProcessingMetrics = new HashMap<>();
+  private Map<String, DataflowExecutionStateTracker> activeTrackersByWorkId = new HashMap<>();
 
   public static DataflowExecutionStateSampler instance() {
     return INSTANCE;
@@ -48,16 +49,30 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
           mergeStepStatsMaps(completedProcessingMetrics.getOrDefault(
                   dfTracker.getWorkItemId(), new HashMap<>()),
               dfTracker.getProcessingTimesByStep()));
+      activeTrackersByWorkId.remove(dfTracker.getWorkItemId());
     }
     super.removeTracker(tracker);
   }
 
+  private void updateTrackerMap() {
+    // TODO(clairemccarthy): clear map before putting?
+    for (ExecutionStateTracker tracker : activeTrackers) {
+      if (!(tracker instanceof DataflowExecutionStateTracker)) {
+        continue;
+      }
+      DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+      activeTrackersByWorkId.put(dfTracker.getWorkItemId(), dfTracker);
+    }
+  }
+
   @Override
   public void doSampling(long millisSinceLastSample) {
+    updateTrackerMap();
     super.doSampling(millisSinceLastSample);
   }
 
   public synchronized void clearMapsForWorkId(String workId) {
     completedProcessingMetrics.remove(workId);
+    activeTrackersByWorkId.remove(workId);
   }
 }
