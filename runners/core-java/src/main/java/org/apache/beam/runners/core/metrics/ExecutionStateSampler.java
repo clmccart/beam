@@ -146,8 +146,10 @@ public class ExecutionStateSampler {
     }
   }
 
-  /** Add the tracker to the sampling set. */
-  void addTracker(ExecutionStateTracker tracker) {
+  /**
+   * Add the tracker to the sampling set.
+   */
+  protected void addTracker(ExecutionStateTracker tracker) {
     this.activeTrackers.add(tracker);
   }
 
