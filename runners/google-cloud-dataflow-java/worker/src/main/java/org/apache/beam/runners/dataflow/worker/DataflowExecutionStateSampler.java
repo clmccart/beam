@@ -72,6 +72,20 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     return null;
   }
 
+  @Nullable
+  public Map<String, IntSummaryStatistics> getProcessingDistributionsForWorkId(
+      String workId) {
+    if (!activeTrackersByWorkId.containsKey(workId)) {
+      if (completedProcessingMetrics.containsKey(workId)) {
+        return completedProcessingMetrics.get(workId);
+      }
+      return null;
+    }
+    DataflowExecutionStateTracker tracker = activeTrackersByWorkId.get(workId);
+    return mergeStepStatsMaps(completedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
+        tracker.getProcessingTimesByStep());
+  }
+
   @Override
   public void doSampling(long millisSinceLastSample) {
     for (DataflowExecutionStateTracker tracker : activeTrackersByWorkId.values()) {
