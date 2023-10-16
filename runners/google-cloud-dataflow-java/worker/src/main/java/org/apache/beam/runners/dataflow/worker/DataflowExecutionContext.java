@@ -273,6 +273,10 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       this.contextActivationObserverRegistry = ContextActivationObserverRegistry.createDefault();
     }
 
+    public ActiveMessageMetadata getActiveMessageMetadata() {
+      return activeMessageMetadata;
+    }
+
     @Override
     public Closeable activate() {
       Closer closer = Closer.create();

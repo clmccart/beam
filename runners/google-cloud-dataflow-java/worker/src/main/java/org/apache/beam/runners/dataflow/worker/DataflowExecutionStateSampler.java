@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.Map;
 import java.util.Map.Entry;
+import javax.annotation.Nullable;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
@@ -64,6 +65,13 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     super.removeTracker(tracker);
   }
 
+  @Nullable
+  public ActiveMessageMetadata getActiveMessageMetadataForWorkId(String workId) {
+    if (activeTrackersByWorkId.containsKey(workId)) {
+      return activeTrackersByWorkId.get(workId).getActiveMessageMetadata();
+    }
+    return null;
+  }
 
   @Override
   public void doSampling(long millisSinceLastSample) {
