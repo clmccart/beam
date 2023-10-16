@@ -256,7 +256,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private ActiveMessageMetadata activeMessageMetadata = null;
 
     // Key: user defined step name. Value: element's processing start time.
-    private Map<String, IntSummaryStatistics> processingTimesPerStep = new HashMap<>();
+    private Map<String, IntSummaryStatistics> processingTimesByStep = new HashMap<>();
     private MillisProvider clock = System::currentTimeMillis;
 
     public DataflowExecutionStateTracker(
@@ -309,7 +309,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       if (this.activeMessageMetadata == null) {
         return;
       }
-      this.processingTimesPerStep.compute(
+      this.processingTimesByStep.compute(
           this.activeMessageMetadata.userStepName, (k, v) -> {
             if (v == null) {
               v = new IntSummaryStatistics();
@@ -356,6 +356,10 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
     public String getWorkItemId() {
       return this.workItemId;
+    }
+
+    public Map<String, IntSummaryStatistics> getProcessingTimesByStep() {
+      return processingTimesByStep;
     }
   }
 }
