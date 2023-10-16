@@ -348,9 +348,10 @@ public class StreamingDataflowWorkerTest {
                     DoFnSchemaInformation.create(),
                     Collections.emptyMap()))));
     return new ParallelInstruction()
-        .setSystemName(DEFAULT_PARDO_SYSTEM_NAME)
-        .setName(DEFAULT_PARDO_USER_NAME)
-        .setOriginalName(DEFAULT_PARDO_ORIGINAL_NAME)
+        .setSystemName(doFn.getClass().getName())
+        .setName(
+            doFn.getClass().getName().substring(doFn.getClass().getName().lastIndexOf("$") + 1))
+        .setOriginalName(doFn.getClass().getName())
         .setParDo(
             new ParDoInstruction()
                 .setInput(
@@ -544,7 +545,28 @@ public class StreamingDataflowWorkerTest {
             + "      messages {"
             + "        timestamp: "
             + timestamp
-            + "        data: \"data"
+            + "        data: \"data1"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data2"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data3"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data4"
             + index
             + "\""
             + "      }"
@@ -3206,7 +3228,28 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
+      Thread.sleep(200);
+      c.output(c.element());
+    }
+  }
+
+  private static class SlowDoFnTwo extends DoFn<String, String> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) throws Exception {
+      Thread.sleep(400);
+      c.output(c.element());
+    }
+  }
+
+  private static class SlowDoFnThree extends DoFn<String, String> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) throws Exception {
+      LOG.info("CLAIRE TEST {} SlowDoFnThree process: {}", Thread.currentThread().getId(),
+          c.element().toString());
       Thread.sleep(1000);
+      LOG.info("CLAIRE TEST {} SlowDoFnThree finish process", Thread.currentThread().getId());
       c.output(c.element());
     }
   }
@@ -3217,15 +3260,29 @@ public class StreamingDataflowWorkerTest {
         Arrays.asList(
             makeSourceInstruction(StringUtf8Coder.of()),
             makeDoFnInstruction(new SlowDoFn(), 0, StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnTwo(), 1, StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnThree(), 2, StringUtf8Coder.of()),
             makeSinkInstruction(StringUtf8Coder.of(), 0));
 
     FakeWindmillServer server = new FakeWindmillServer(errorCollector);
     StreamingDataflowWorkerOptions options = createTestingPipelineOptions(server);
-    options.setActiveWorkRefreshPeriodMillis(100);
+    options.setActiveWorkRefreshPeriodMillis(10);
     StreamingDataflowWorker worker = makeWorker(instructions, options, true /* publishCounters */);
     worker.start();
 
     server.whenGetWorkCalled().thenReturn(makeInput(0, TimeUnit.MILLISECONDS.toMicros(0)));
+    for (int i = 0; i < 3; ++i) {
+      // Same work token.
+      server
+          .whenGetWorkCalled()
+          .thenReturn(makeInput(i, TimeUnit.MILLISECONDS.toMicros(i)))
+          .thenReturn(
+              makeInput(
+                  i + 1000,
+                  TimeUnit.MILLISECONDS.toMicros(i),
+                  keyStringForIndex(i),
+                  DEFAULT_SHARDING_KEY + i));
+    }
     server.waitForAndGetCommits(1);
 
     worker.stop();
@@ -3432,7 +3489,9 @@ public class StreamingDataflowWorkerTest {
     work.setState(StreamingDataflowWorker.Work.State.COMMITTING);
     clock.sleep(Duration.millis(60));
 
-    Iterator<LatencyAttribution> it = work.getLatencyAttributions().iterator();
+    Iterator<LatencyAttribution> it = work.getLatencyAttributions("",
+            DataflowExecutionStateSampler.instance())
+        .iterator();
     assertTrue(it.hasNext());
     LatencyAttribution lat = it.next();
     assertTrue(lat.getState() == LatencyAttribution.State.QUEUED);
