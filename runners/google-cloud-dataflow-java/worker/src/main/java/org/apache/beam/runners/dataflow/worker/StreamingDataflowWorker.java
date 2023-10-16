@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -75,7 +74,6 @@ import org.apache.beam.runners.dataflow.internal.CustomSources;
 import org.apache.beam.runners.dataflow.options.DataflowWorkerHarnessOptions;
 import org.apache.beam.runners.dataflow.util.CloudObject;
 import org.apache.beam.runners.dataflow.util.CloudObjects;
-import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker.Metadata;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingPerStageSystemCounterNames;
 import org.apache.beam.runners.dataflow.worker.DataflowSystemMetrics.StreamingSystemCounterNames;
@@ -767,7 +765,7 @@ public class StreamingDataflowWorker {
     memoryMonitorThread.start();
     dispatchThread.start();
     commitThread.start();
-    sampler = DataflowExecutionStateSampler.instance();
+    this.sampler = DataflowExecutionStateSampler.instance();
     sampler.start();
     // Periodically report workers counters and other updates.
     globalWorkerUpdatesTimer = executorSupplier.apply("GlobalWorkerUpdatesTimer");
@@ -784,7 +782,7 @@ public class StreamingDataflowWorker {
             @Override
             public void run() {
               try {
-                refreshActiveWork(sampler);
+                refreshActiveWork();
               } catch (RuntimeException e) {
                 LOG.warn("Failed to refresh active work: ", e);
               }
@@ -1172,7 +1170,7 @@ public class StreamingDataflowWorker {
       }
     }
 
-    public Collection<Windmill.LatencyAttribution> getLatencyAttributions(
+    public Collection<Windmill.LatencyAttribution> getLatencyAttributions(String workId,
         DataflowExecutionStateSampler sampler) {
       List<Windmill.LatencyAttribution> list = new ArrayList<>();
       for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
@@ -1187,7 +1185,7 @@ public class StreamingDataflowWorker {
         if (state == LatencyAttribution.State.ACTIVE) {
           // TODO: are these values getting duplicated across keys?
           laBuilder = addActiveLatencyBreakdownToBuilder(laBuilder,
-              DataflowWorkerLoggingMDC.getWorkId(), sampler);
+              workId, sampler);
         }
         Windmill.LatencyAttribution la = laBuilder
             .setState(state)
@@ -1201,14 +1199,19 @@ public class StreamingDataflowWorker {
 
   private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(
       LatencyAttribution.Builder builder, String workId, DataflowExecutionStateSampler sampler) {
+    // sampler.updateTrackerMonitoringMap();
+
     // sampler.get info for work token
     // info we need: for each step, historical processing distribution, active message if there is one.
     Map<String, IntSummaryStatistics> processingDistributionsPerStep = sampler.getProcessingDistributionsForWorkId(
         workId);
-    LOG.info("CLAIRE TEST {} processingDistributionsPerStep for workId {}: {}",
-        Thread.currentThread().getId(), workId,
-        processingDistributionsPerStep);
     Metadata activeMessage = sampler.getActiveMessageMetadataForWorkId(workId);
+    LOG.info("CLAIRE TEST refreshing work for workid: {}", workId);
+    LOG.info("CLAIRE TEST {} sampler.processingdistribution: {}", Thread.currentThread().getId(),
+        processingDistributionsPerStep);
+    LOG.info("CLAIRE TEST {} activemsg: {}", Thread.currentThread().getId(),
+        activeMessage.userStepName);
+    boolean activeAdded = false;
     for (Entry<String, IntSummaryStatistics> entry : processingDistributionsPerStep.entrySet()) {
       ActiveLatencyBreakdown.Builder stepBuilder = ActiveLatencyBreakdown.newBuilder();
       stepBuilder.setUserStepName(entry.getKey());
@@ -1219,11 +1222,22 @@ public class StreamingDataflowWorker {
           .setSum(entry.getValue().getSum());
       stepBuilder.setProcessingTimesDistribution(distributionBuilder.build());
       if (activeMessage != null && activeMessage.userStepName.equals(entry.getKey())) {
+        activeAdded = true;
         ActiveMessageMetadata.Builder activeMsgBuilder = ActiveMessageMetadata.newBuilder();
         activeMsgBuilder.setProcessingTimeMillis(
             System.currentTimeMillis() - activeMessage.startTime);
         stepBuilder.setActiveMessageMetadata(activeMsgBuilder);
       }
+      builder.addActiveLatencyBreakdown(stepBuilder.build());
+    }
+    // TODO: this is wrong. active message, if there is none, will return a fake metadata object. we don't want that to get added.
+    if (!activeAdded && !activeMessage.userStepName.equals("")) {
+      ActiveLatencyBreakdown.Builder stepBuilder = ActiveLatencyBreakdown.newBuilder();
+      stepBuilder.setUserStepName(activeMessage.userStepName);
+      ActiveMessageMetadata.Builder activeMsgBuilder = ActiveMessageMetadata.newBuilder();
+      activeMsgBuilder.setProcessingTimeMillis(
+          System.currentTimeMillis() - activeMessage.startTime);
+      stepBuilder.setActiveMessageMetadata(activeMsgBuilder);
       builder.addActiveLatencyBreakdown(stepBuilder.build());
     }
     LOG.info("CLAIRE TEST {} builder: {}", Thread.currentThread().getId(), builder);
@@ -1319,15 +1333,7 @@ public class StreamingDataflowWorker {
     final ByteString key = workItem.getKey();
     work.setState(State.PROCESSING);
     {
-      StringBuilder workIdBuilder = new StringBuilder(33);
-      LOG.info("CLAIRE TEST shardingkey: {} to hex string: {}", workItem.getShardingKey(),
-          Long.toHexString(workItem.getShardingKey()));
-      LOG.info("CLAIRE TEST worktoken: {} to hex string: {}", workItem.getWorkToken(),
-          Long.toHexString(workItem.getWorkToken()));
-      workIdBuilder.append(Long.toHexString(workItem.getShardingKey()));
-      workIdBuilder.append('-');
-      workIdBuilder.append(Long.toHexString(workItem.getWorkToken()));
-      DataflowWorkerLoggingMDC.setWorkId(workIdBuilder.toString());
+      DataflowWorkerLoggingMDC.setWorkId(constructWorkId(workItem));
     }
 
     DataflowWorkerLoggingMDC.setStageName(computationId);
@@ -1532,7 +1538,8 @@ public class StreamingDataflowWorker {
 
       // Add the output to the commit queue.
       work.setState(State.COMMIT_QUEUED);
-      outputBuilder.addAllPerWorkItemLatencyAttributions(work.getLatencyAttributions(sampler));
+      outputBuilder.addAllPerWorkItemLatencyAttributions(
+          work.getLatencyAttributions(constructWorkId(workItem), sampler));
 
       WorkItemCommitRequest commitRequest = outputBuilder.build();
       LOG.info("CLAIRE TEST commitRequest: {}", commitRequest);
@@ -1667,6 +1674,14 @@ public class StreamingDataflowWorker {
       DataflowWorkerLoggingMDC.setWorkId(null);
       DataflowWorkerLoggingMDC.setStageName(null);
     }
+  }
+
+  private static String constructWorkId(Windmill.WorkItem workItem) {
+    StringBuilder workIdBuilder = new StringBuilder(33);
+    workIdBuilder.append(Long.toHexString(workItem.getShardingKey()));
+    workIdBuilder.append('-');
+    workIdBuilder.append(Long.toHexString(workItem.getWorkToken()));
+    return workIdBuilder.toString();
   }
 
   private WorkItemCommitRequest buildWorkItemTruncationRequest(
@@ -2227,7 +2242,7 @@ public class StreamingDataflowWorker {
    * age threshold is determined by
    * {@link StreamingDataflowWorkerOptions#getActiveWorkRefreshPeriodMillis}.
    */
-  private void refreshActiveWork(DataflowExecutionStateSampler sampler) {
+  private void refreshActiveWork() {
     Map<String, List<Windmill.KeyedGetDataRequest>> active = new HashMap<>();
     Instant refreshDeadline =
         clock.get().minus(Duration.millis(options.getActiveWorkRefreshPeriodMillis()));
@@ -2398,6 +2413,7 @@ public class StreamingDataflowWorker {
      */
     public List<Windmill.KeyedGetDataRequest> getKeysToRefresh(Instant refreshDeadline,
         DataflowExecutionStateSampler sampler) {
+      LOG.info("CLAIRE TEST {} refreshing", Thread.currentThread().getId());
       List<Windmill.KeyedGetDataRequest> result = new ArrayList<>();
       synchronized (activeWork) {
         for (Map.Entry<ShardedKey, Deque<Work>> entry : activeWork.entrySet()) {
@@ -2409,12 +2425,15 @@ public class StreamingDataflowWorker {
                       .setKey(shardedKey.key())
                       .setShardingKey(shardedKey.shardingKey())
                       .setWorkToken(work.getWorkItem().getWorkToken())
-                      .addAllLatencyAttribution(work.getLatencyAttributions(sampler))
+                      .addAllLatencyAttribution(
+                          work.getLatencyAttributions(
+                              constructWorkId(work.getWorkItem()), sampler))
                       .build());
             }
           }
         }
       }
+      LOG.info("CLAIRE TEST {} result: {}", Thread.currentThread().getId(), result);
       return result;
     }
 

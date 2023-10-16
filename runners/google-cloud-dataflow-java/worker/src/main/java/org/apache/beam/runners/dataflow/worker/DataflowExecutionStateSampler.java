@@ -19,14 +19,6 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
 
-  // protected Map<Long, Map<String, Set<Tuple>>> removedProcessingTimesPerKey = new HashMap<>();
-
-  // public Map<String, Set<Tuple>> getRemovedProcessingTimersPerKey(Long workToken) {
-  //   return this.removedProcessingTimesPerKey.getOrDefault(workToken,
-  //       new HashMap<String, Set<Tuple>>());
-  // }
-
-
   private static final MillisProvider SYSTEM_MILLIS_PROVIDER = System::currentTimeMillis;
 
   private static final DataflowExecutionStateSampler INSTANCE =
@@ -46,6 +38,7 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   public Map<String, IntSummaryStatistics> mergeStepStatsMaps(
       Map<String, IntSummaryStatistics> map1, Map<String, IntSummaryStatistics> map2) {
+    LOG.info("CLAIRE TEST {} merging map {} with {}", Thread.currentThread().getId(), map1, map2);
     for (Entry<String, IntSummaryStatistics> steps : map2
         .entrySet()) {
       map1.compute(steps.getKey(), (k, v) -> {
@@ -61,19 +54,13 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   @Override
   public void removeTracker(ExecutionStateTracker tracker) {
-    // TODO: when removing, add processing times.
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-    LOG.info("CLAIRE TEST {} removing tracker {} {}",
-        Thread.currentThread().getId(), dfTracker.getWorkItemId(),
-        dfTracker.getProcessingTimesPerStep());
     // need to handle situation where there is an active message still.
     dfTracker.recordActiveMessageInProcessingTimesMap();
     synchronized (removedProcessingMetrics) {
       removedProcessingMetrics.put(dfTracker.getWorkItemId(),
           mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(
               dfTracker.getWorkItemId(), new HashMap<>()), dfTracker.getProcessingTimesPerStep()));
-      LOG.info("CLAIRE TEST {} removedProcessingMetrics: {}", Thread.currentThread().getId(),
-          removedProcessingMetrics);
     }
     synchronized (trackersPerWorkId) {
       trackersPerWorkId.remove(dfTracker.getWorkItemId());
@@ -99,22 +86,18 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       String workId) {
     if (trackersPerWorkId.containsKey(workId)) {
       DataflowExecutionStateTracker tracker = trackersPerWorkId.get(workId);
-      if (activeTrackers.contains(tracker)) {
-        LOG.info("CLAIRE TEST {} removedmetrics for workId {}: {}", Thread.currentThread().getId(),
-            workId, removedProcessingMetrics.get(workId));
-        LOG.info("CLAIRE TEST {} tracker.getProcessingTimes {}", Thread.currentThread().getId(),
-            tracker.getProcessingTimesPerStep());
-        return mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
-            tracker.getProcessingTimesPerStep());
-      }
+      LOG.info("CLAIRE TEST {} active message (unrelated): {}", Thread.currentThread().getId(),
+          tracker.getActiveMessageMetadata().userStepName);
+      return mergeStepStatsMaps(removedProcessingMetrics.getOrDefault(workId, new HashMap<>()),
+          tracker.getProcessingTimesPerStep());
     } else {
       return removedProcessingMetrics.getOrDefault(workId, new HashMap<>());
     }
     // TODO: consider making this return an optional
-    return new HashMap<>();
   }
 
   public void clearMapsForWorkId(String workId) {
+    LOG.info("CLAIRE TEST removing tracker in for workid: {}", workId);
     synchronized (trackersPerWorkId) {
       trackersPerWorkId.remove(workId);
     }
@@ -150,10 +133,11 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     super.doSampling(millisSinceLastSample);
   }
 
-  private void updateTrackerMonitoringMap() {
+  public void updateTrackerMonitoringMap() {
     for (ExecutionStateTracker tracker : activeTrackers) {
       DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
       // TODO: i think this will result in duplicating trackers?
+      LOG.info("CLAIRE TEST putting tracker in for workid: {}", dfTracker.getWorkItemId());
       trackersPerWorkId.put(dfTracker.getWorkItemId(), dfTracker);
     }
   }
