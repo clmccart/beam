@@ -42,6 +42,15 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   }
 
   @Override
+  public void addTracker(ExecutionStateTracker tracker) {
+    if (!(tracker instanceof DataflowExecutionStateTracker)) {
+      return;
+    }
+    DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+    this.activeTrackersByWorkId.put(dfTracker.getWorkItemId(), dfTracker);
+  }
+
+  @Override
   public synchronized void removeTracker(ExecutionStateTracker tracker) {
     if (tracker instanceof DataflowExecutionContext.DataflowExecutionStateTracker) {
       DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
@@ -54,25 +63,15 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
     super.removeTracker(tracker);
   }
 
-  private void updateTrackerMap() {
-    // TODO(clairemccarthy): clear map before putting?
-    for (ExecutionStateTracker tracker : activeTrackers) {
-      if (!(tracker instanceof DataflowExecutionStateTracker)) {
-        continue;
-      }
-      DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
-      activeTrackersByWorkId.put(dfTracker.getWorkItemId(), dfTracker);
-    }
-  }
 
   @Override
   public void doSampling(long millisSinceLastSample) {
-    updateTrackerMap();
-    super.doSampling(millisSinceLastSample);
+    for (DataflowExecutionStateTracker tracker : activeTrackersByWorkId.values()) {
+      tracker.takeSample(millisSinceLastSample);
+    }
   }
 
   public synchronized void clearMapsForWorkId(String workId) {
     completedProcessingMetrics.remove(workId);
-    activeTrackersByWorkId.remove(workId);
   }
 }
