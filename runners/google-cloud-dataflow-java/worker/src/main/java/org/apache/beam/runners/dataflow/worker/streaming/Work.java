@@ -26,9 +26,14 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
+import org.apache.beam.runners.dataflow.worker.ActiveMessageMetadata;
+import org.apache.beam.runners.dataflow.worker.DataflowExecutionStateSampler;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill;
+import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown;
+import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown.ActiveElementMetadata;
 
 @NotThreadSafe
 public class Work implements Runnable {
@@ -101,7 +106,9 @@ public class Work implements Runnable {
     }
   }
 
-  public Collection<Windmill.LatencyAttribution> getLatencyAttributions() {
+  public Collection<Windmill.LatencyAttribution> getLatencyAttributions(Boolean isHeartbeat,
+      String workId,
+      DataflowExecutionStateSampler sampler) {
     List<Windmill.LatencyAttribution> list = new ArrayList<>();
     for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
       Duration duration = totalDurationPerState.getOrDefault(state, Duration.ZERO);
@@ -111,13 +118,39 @@ public class Work implements Runnable {
       if (duration.equals(Duration.ZERO)) {
         continue;
       }
-      list.add(
-          Windmill.LatencyAttribution.newBuilder()
-              .setState(state)
-              .setTotalDurationMillis(duration.getMillis())
-              .build());
+      LatencyAttribution.Builder laBuilder = Windmill.LatencyAttribution.newBuilder();
+      if (state == LatencyAttribution.State.ACTIVE) {
+        laBuilder = addActiveLatencyBreakdownToBuilder(isHeartbeat, laBuilder,
+            workId, sampler);
+      }
+      Windmill.LatencyAttribution la = laBuilder
+          .setState(state)
+          .setTotalDurationMillis(duration.getMillis())
+          .build();
+      list.add(la);
     }
     return list;
+  }
+
+  private static LatencyAttribution.Builder addActiveLatencyBreakdownToBuilder(Boolean isHeartbeat,
+      LatencyAttribution.Builder builder, String workId, DataflowExecutionStateSampler sampler) {
+    if (isHeartbeat) {
+      ActiveLatencyBreakdown.Builder stepBuilder = ActiveLatencyBreakdown.newBuilder();
+      ActiveMessageMetadata activeMessage = sampler.getActiveMessageMetadataForWorkId(
+          workId);
+      if (activeMessage == null) {
+        return builder;
+      }
+      stepBuilder.setUserStepName(activeMessage.userStepName);
+      ActiveElementMetadata.Builder activeElementBuilder = ActiveElementMetadata.newBuilder();
+      activeElementBuilder.setProcessingTimeMillis(
+          System.currentTimeMillis() - activeMessage.startTime);
+      stepBuilder.setActiveMessageMetadata(activeElementBuilder);
+      builder.addActiveLatencyBreakdown(stepBuilder.build());
+      return builder;
+    }
+    // TODO(clairemccarthy): if it's not a heartbeat, add all processing distributions.
+    return builder;
   }
 
   boolean isStuckCommittingAt(Instant stuckCommitDeadline) {
