@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.IntSummaryStatistics;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.beam.runners.core.NullSideInputReader;
@@ -253,6 +255,8 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
      */
     private ActiveMessageMetadata activeMessageMetadata = null;
 
+    // Key: user defined step name. Value: element's processing start time.
+    private Map<String, IntSummaryStatistics> processingTimesPerStep = new HashMap<>();
     private MillisProvider clock = System::currentTimeMillis;
 
     public DataflowExecutionStateTracker(
@@ -297,6 +301,30 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       super.takeSampleOnce(millisSinceLastSample);
     }
 
+    /**
+     * Transitions the metadata for the currently active message to an entry in the processing times
+     * map. Sets the activeMessageMetadata to null after the entry has been recorded.
+     */
+    private void recordActiveMessageInProcessingTimesMap() {
+      if (this.activeMessageMetadata == null) {
+        return;
+      }
+      this.processingTimesPerStep.compute(
+          this.activeMessageMetadata.userStepName, (k, v) -> {
+            if (v == null) {
+              v = new IntSummaryStatistics();
+            }
+            v.accept(
+                (int) (System.currentTimeMillis() - this.activeMessageMetadata.startTime));
+            return v;
+          });
+      this.activeMessageMetadata = null;
+    }
+
+    /**
+     * When the tracker enters a new state, it records the processing time for the state it was
+     * previously in.
+     */
     @Override
     public Closeable enterState(ExecutionState newState) {
       Closeable baseCloseable = super.enterState(newState);
@@ -305,16 +333,20 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       if (isDataflowProcessElementState) {
         DataflowExecutionState newDFState = (DataflowExecutionState) newState;
         String userStepName = newDFState.getStepName().userName();
-        // TODO(clairemccarthy): if an active message is present, transition it.
-        this.activeMessageMetadata = new ActiveMessageMetadata(userStepName, clock.getMillis());
+        if (userStepName != null) {
+          // If the new state is different from the currently active message metadata, transition it.
+          if (this.activeMessageMetadata != null) {
+            recordActiveMessageInProcessingTimesMap();
+          }
+          this.activeMessageMetadata = new ActiveMessageMetadata(userStepName, clock.getMillis());
+        }
         elementExecutionTracker.enter(newDFState.getStepName());
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
           if (this.activeMessageMetadata != null) {
-            // TODO(clairemccarthy): if an active message is present, transition it.
-            this.activeMessageMetadata = null;
+            recordActiveMessageInProcessingTimesMap();
           }
           elementExecutionTracker.exit();
         }
