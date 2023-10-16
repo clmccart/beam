@@ -493,11 +493,7 @@ public class StreamingDataflowWorker {
 
   /** Sets the stage name and workId of the current Thread for logging. */
   private static void setUpWorkLoggingContext(Windmill.WorkItem workItem, String computationId) {
-    String workIdBuilder =
-        Long.toHexString(workItem.getShardingKey())
-            + '-'
-            + Long.toHexString(workItem.getWorkToken());
-    DataflowWorkerLoggingMDC.setWorkId(workIdBuilder);
+    DataflowWorkerLoggingMDC.setWorkId(constructWorkId(workItem));
     DataflowWorkerLoggingMDC.setStageName(computationId);
   }
 
@@ -1272,9 +1268,18 @@ public class StreamingDataflowWorker {
         stageInfo.timerProcessingMsecs().addValue(processingTimeMsecs);
       }
 
+      sampler.clearMapsForWorkId(constructWorkId(work.getWorkItem()));
       DataflowWorkerLoggingMDC.setWorkId(null);
       DataflowWorkerLoggingMDC.setStageName(null);
     }
+  }
+
+  private static String constructWorkId(Windmill.WorkItem workItem) {
+    StringBuilder workIdBuilder = new StringBuilder(33);
+    workIdBuilder.append(Long.toHexString(workItem.getShardingKey()));
+    workIdBuilder.append('-');
+    workIdBuilder.append(Long.toHexString(workItem.getWorkToken()));
+    return workIdBuilder.toString();
   }
 
   private WorkItemCommitRequest buildWorkItemTruncationRequest(
