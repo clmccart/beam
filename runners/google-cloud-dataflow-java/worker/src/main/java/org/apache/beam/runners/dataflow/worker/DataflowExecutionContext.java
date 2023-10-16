@@ -46,6 +46,7 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Iterables;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.io.Closer;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.joda.time.DateTimeUtils.MillisProvider;
 import org.joda.time.Instant;
 
 /** Execution context for the Dataflow worker. */
@@ -245,6 +246,14 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
     private final String workItemId;
 
+    /**
+     * Metadata on the message whose processing is currently being managed by this tracker. If no
+     * message is actively being processed, activeMessageMetadata will be null.
+     */
+    private ActiveMessageMetadata activeMessageMetadata = null;
+
+    private MillisProvider clock = System::currentTimeMillis;
+
     public DataflowExecutionStateTracker(
         ExecutionStateSampler sampler,
         DataflowOperationContext.DataflowExecutionState otherState,
@@ -293,11 +302,17 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
       final boolean isDataflowProcessElementState =
           newState.isProcessElementState && newState instanceof DataflowExecutionState;
       if (isDataflowProcessElementState) {
-        elementExecutionTracker.enter(((DataflowExecutionState) newState).getStepName());
+        DataflowExecutionState newDFState = (DataflowExecutionState) newState;
+        this.activeMessageMetadata = new ActiveMessageMetadata(newDFState.getStepName().userName(),
+            clock.getMillis());
+        elementExecutionTracker.enter(newDFState.getStepName());
       }
 
       return () -> {
         if (isDataflowProcessElementState) {
+          if (this.activeMessageMetadata != null) {
+            this.activeMessageMetadata = null;
+          }
           elementExecutionTracker.exit();
         }
         baseCloseable.close();
