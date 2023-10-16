@@ -387,9 +387,10 @@ public class StreamingDataflowWorkerTest {
                     DoFnSchemaInformation.create(),
                     Collections.emptyMap()))));
     return new ParallelInstruction()
-        .setSystemName(DEFAULT_PARDO_SYSTEM_NAME)
-        .setName(DEFAULT_PARDO_USER_NAME)
-        .setOriginalName(DEFAULT_PARDO_ORIGINAL_NAME)
+        .setSystemName(doFn.getClass().getName())
+        .setName(
+            doFn.getClass().getName().substring(doFn.getClass().getName().lastIndexOf("$") + 1))
+        .setOriginalName(doFn.getClass().getName())
         .setParDo(
             new ParDoInstruction()
                 .setInput(
@@ -563,7 +564,28 @@ public class StreamingDataflowWorkerTest {
             + "      messages {"
             + "        timestamp: "
             + timestamp
-            + "        data: \"data"
+            + "        data: \"data1"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data2"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data3"
+            + index
+            + "\""
+            + "      }"
+            + "      messages {"
+            + "        timestamp: "
+            + timestamp
+            + "        data: \"data4"
             + index
             + "\""
             + "      }"
@@ -3120,9 +3142,38 @@ public class StreamingDataflowWorkerTest {
   }
 
   @Test
+  public void testLatencyReporting() throws Exception {
+    List<ParallelInstruction> instructions =
+        Arrays.asList(
+            makeSourceInstruction(StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFn(), 0, StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnTwo(), 1, StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFnThree(), 2, StringUtf8Coder.of()),
+            makeSinkInstruction(StringUtf8Coder.of(), 0));
+
+    FakeWindmillServer server = new FakeWindmillServer(errorCollector);
+    StreamingDataflowWorkerOptions options = createTestingPipelineOptions(server);
+    options.setActiveWorkRefreshPeriodMillis(100);
+    StreamingDataflowWorker worker = makeWorker(instructions, options, true /* publishCounters */);
+    worker.start();
+
+    server.whenGetWorkCalled().thenReturn(makeInput(0, TimeUnit.MILLISECONDS.toMicros(0)));
+    server.waitForAndGetCommits(1);
+
+    // TODO(clairemccarthy): add assertions that detdata contains active message metadata and commit contains processing distributions.
+
+    worker.stop();
+
+    // This graph will not normally produce any GetData calls, so all such calls are from active
+    // work refreshes.
+    assertThat(server.numGetDataRequests(), greaterThan(0));
+  }
+
+  @Test
   public void testLatencyAttributionProtobufsPopulated() {
     FakeClock clock = new FakeClock();
-    Work work = Work.create(null, clock, Collections.emptyList(), unused -> {});
+    Work work = Work.create(null, clock, Collections.emptyList(), unused -> {
+    });
 
     clock.sleep(Duration.millis(10));
     work.setState(Work.State.PROCESSING);
@@ -3136,6 +3187,7 @@ public class StreamingDataflowWorkerTest {
     work.setState(Work.State.COMMITTING);
     clock.sleep(Duration.millis(60));
 
+    // TODO(clairemccarthy): add assertions here for breakdowns.
     Iterator<LatencyAttribution> it = work.getLatencyAttributions().iterator();
     assertTrue(it.hasNext());
     LatencyAttribution lat = it.next();
@@ -3754,12 +3806,31 @@ public class StreamingDataflowWorkerTest {
 
     @ProcessElement
     public void processElement(ProcessContext c) throws Exception {
+      Thread.sleep(200);
+      c.output(c.element());
+    }
+  }
+
+  private static class SlowDoFnTwo extends DoFn<String, String> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) throws Exception {
+      Thread.sleep(400);
+      c.output(c.element());
+    }
+  }
+
+  private static class SlowDoFnThree extends DoFn<String, String> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) throws Exception {
       Thread.sleep(1000);
       c.output(c.element());
     }
   }
 
   static class FakeClock implements Supplier<Instant> {
+
     private final PriorityQueue<Job> jobs = new PriorityQueue<>();
     private Instant now = Instant.now();
 
