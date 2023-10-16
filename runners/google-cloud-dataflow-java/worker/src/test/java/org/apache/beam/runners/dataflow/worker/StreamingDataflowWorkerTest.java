@@ -3188,7 +3188,8 @@ public class StreamingDataflowWorkerTest {
     clock.sleep(Duration.millis(60));
 
     // TODO(clairemccarthy): add assertions here for breakdowns.
-    Iterator<LatencyAttribution> it = work.getLatencyAttributions().iterator();
+    Iterator<LatencyAttribution> it = work.getLatencyAttributions(false, "",
+        DataflowExecutionStateSampler.instance()).iterator();
     assertTrue(it.hasNext());
     LatencyAttribution lat = it.next();
     assertSame(State.QUEUED, lat.getState());
