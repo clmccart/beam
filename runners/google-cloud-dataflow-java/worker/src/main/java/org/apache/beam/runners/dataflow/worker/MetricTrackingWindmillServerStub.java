@@ -34,6 +34,8 @@ import org.apache.beam.runners.dataflow.worker.windmill.client.WindmillStreamPoo
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.util.concurrent.SettableFuture;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Wrapper around a {@link WindmillServerStub} that tracks metrics for the number of in-flight
@@ -186,8 +188,11 @@ public class MetricTrackingWindmillServerStub {
     }
   }
 
+  private static final Logger LOG = LoggerFactory.getLogger(MetricTrackingWindmillServerStub.class);
+
   public Windmill.KeyedGetDataResponse getStateData(
       String computation, Windmill.KeyedGetDataRequest request) {
+    LOG.info("CLAIRE TEST get data");
     gcThrashingMonitor.waitForResources("GetStateData");
     activeStateReads.getAndIncrement();
 

@@ -52,15 +52,8 @@ import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.LoggerFactory;
-import org.apache.beam.sdk.state.StateSpec;
-
-import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.MoreObjects.firstNonNull;
-
 import org.slf4j.Logger;
-import org.apache.beam.sdk.coders.VarIntCoder;
-import org.apache.beam.sdk.state.StateSpecs;
-import org.apache.beam.sdk.state.ValueState;
-import org.apache.beam.sdk.values.KV;
+
 /**
  * An example that counts words in Shakespeare and includes Beam best practices.
  *
@@ -113,7 +106,7 @@ public class WordCount {
    * a ParDo in the pipeline.
    */
   // [START extract_words_fn]
-  static class ExtractWordsFn extends DoFn<String, KV<String, String>> {
+  static class ExtractWordsFn extends DoFn<String, String> {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExtractWordsFn.class);
 
@@ -122,8 +115,8 @@ public class WordCount {
         Metrics.distribution(ExtractWordsFn.class, "lineLenDistro");
 
     @ProcessElement
-    public void processElement(@Element String element,
-        OutputReceiver<KV<String, String>> receiver) {
+    public void processElement(@Element String element, OutputReceiver<String> receiver) {
+      LOG.info("CLAIRE TEST sleeping in extractwords");
       try {
         java.util.concurrent.TimeUnit.SECONDS.sleep(30);
       } catch (InterruptedException e) {
@@ -137,11 +130,11 @@ public class WordCount {
       // Split the line into words.
       String[] words = element.split("[^\\p{L}]+", -1);
 
-      // Output each word encountered into the output PCollection.
+      // Output each word encountecdred into the output PCollection.
       for (String word : words) {
         if (!word.isEmpty()) {
           LOG.info("CLAIRE TEST message being outputted from extractwords");
-          receiver.output(KV.of("", word));
+          receiver.output(word);
         }
       }
     }
@@ -149,28 +142,19 @@ public class WordCount {
   // [END extract_words_fn]
 
   // [START extract_words_fn]
-  static class AppendWordsFn extends DoFn<KV<String, String>, String> {
+  static class AppendWordsFn extends DoFn<String, String> {
 
     private static final Logger LOG = LoggerFactory.getLogger(AppendWordsFn.class);
 
-    // A state cell holding a single Integer per key+window
-    @StateId("index")
-    private final StateSpec<ValueState<Integer>> indexSpec =
-        StateSpecs.value(VarIntCoder.of());
-
     @ProcessElement
-    public void processElement(ProcessContext c, @StateId("index") ValueState<Integer> index) {
-      KV<String, String> element = c.element();
-      LOG.info("CLAIRE TEST appending words. reading state");
-      int current = firstNonNull(index.read(), 0);
-
-      LOG.info("CLAIRE TEST appending words. read state: {}", current);
+    public void processElement(@Element String element, OutputReceiver<String> receiver) {
+      LOG.info("CLAIRE TEST appending words");
       try {
         java.util.concurrent.TimeUnit.SECONDS.sleep(15);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       }
-      c.output(element.getValue() + "1");
+      receiver.output(element + "1");
     }
   }
   // [END append_words_fn]
@@ -201,7 +185,7 @@ public class WordCount {
     public PCollection<KV<String, Long>> expand(PCollection<String> lines) {
 
       // Convert lines of text into individual words.
-      PCollection<KV<String, String>> words = lines.apply(ParDo.of(new ExtractWordsFn()));
+      PCollection<String> words = lines.apply(ParDo.of(new ExtractWordsFn()));
       PCollection<String> appendedWords = words.apply(ParDo.of(new AppendWordsFn()));
 
       // Count the number of times each word occurs.
