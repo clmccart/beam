@@ -933,6 +933,7 @@ public class StreamingDataflowWorker {
     setUpWorkLoggingContext(workItem, computationId);
 
     LOG.debug("Starting processing for {}:\n{}", computationId, work);
+    LOG.info("CLAIRE TEST Starting processing for workid: {}", constructWorkId(workItem));
 
     Windmill.WorkItemCommitRequest.Builder outputBuilder = initializeOutputBuilder(key, workItem);
 

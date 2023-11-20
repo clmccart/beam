@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.beam.runners.dataflow.worker.ActiveMessageMetadata;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionStateSampler;
+import org.apache.beam.runners.dataflow.worker.StreamingDataflowWorker;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown.Distribution;
@@ -37,9 +38,13 @@ import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown;
 import org.apache.beam.runners.dataflow.worker.windmill.Windmill.LatencyAttribution.ActiveLatencyBreakdown.ActiveElementMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @NotThreadSafe
 public class Work implements Runnable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Work.class);
 
   private final Windmill.WorkItem workItem;
   private final Supplier<Instant> clock;
@@ -112,6 +117,8 @@ public class Work implements Runnable {
   public Collection<Windmill.LatencyAttribution> getLatencyAttributions(Boolean isHeartbeat,
       String workId,
       DataflowExecutionStateSampler sampler) {
+    LOG.info("CLAIRE TEST getting latency attributions. isheartbeat? {} for work id: {}",
+        isHeartbeat, workId);
     List<Windmill.LatencyAttribution> list = new ArrayList<>();
     for (Windmill.LatencyAttribution.State state : Windmill.LatencyAttribution.State.values()) {
       Duration duration = totalDurationPerState.getOrDefault(state, Duration.ZERO);
@@ -141,6 +148,8 @@ public class Work implements Runnable {
       ActiveLatencyBreakdown.Builder stepBuilder = ActiveLatencyBreakdown.newBuilder();
       ActiveMessageMetadata activeMessage = sampler.getActiveMessageMetadataForWorkId(
           workId);
+      LOG.info("CLAIRE TEST active message: {}", activeMessage);
+
       if (activeMessage == null) {
         return builder;
       }
@@ -155,6 +164,8 @@ public class Work implements Runnable {
 
     Map<String, IntSummaryStatistics> processingDistributions = sampler.getProcessingDistributionsForWorkId(
         workId);
+    LOG.info("CLAIRE TEST processing distributions {}", processingDistributions);
+
     if (processingDistributions == null) {
       return builder;
     }

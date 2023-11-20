@@ -164,6 +164,7 @@ public class WordCount {
   }
   // [END append_words_fn]
 
+
   /**
    * A SimpleFunction that converts a Word and Count into a printable string.
    */

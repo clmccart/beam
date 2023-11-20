@@ -19,6 +19,7 @@ package org.apache.beam.runners.dataflow.worker;
 
 import static org.apache.beam.runners.dataflow.util.Structs.addObject;
 import static org.apache.beam.runners.dataflow.util.Structs.addString;
+import static org.apache.beam.runners.dataflow.worker.StreamingDataflowWorker.constructWorkId;
 import static org.apache.beam.runners.dataflow.worker.counters.DataflowCounterUpdateExtractor.splitIntToLong;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.both;
@@ -3285,6 +3286,14 @@ public class StreamingDataflowWorkerTest {
 
     assertEquals(
         awrSink.getLatencyAttributionDuration(workToken, State.ACTIVE), Duration.millis(1000));
+  }
+
+  @Test
+  public void testFoo() {
+    Windmill.WorkItem workItem = Windmill.WorkItem.newBuilder().setWorkToken(11L)
+        .setShardingKey(-22L).setKey(ByteString.fromHex("aaaaaaaa")).build();
+    String id = constructWorkId(workItem);
+    String secondId = constructWorkId(workItem);
   }
 
   @Test

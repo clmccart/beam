@@ -229,8 +229,9 @@ public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> 
         other);
 
     this.trackedThread = thread;
-    sampler.addTracker(this);
-
+    synchronized (sampler) {
+      sampler.addTracker(this);
+    }
     return this::deactivate;
   }
 
@@ -240,7 +241,9 @@ public class ExecutionStateTracker implements Comparable<ExecutionStateTracker> 
   }
 
   private synchronized void deactivate() {
-    sampler.removeTracker(this);
+    synchronized (sampler) {
+      sampler.removeTracker(this);
+    }
     Thread thread = this.trackedThread;
     if (thread != null) {
       CURRENT_TRACKERS.remove(thread.getId());

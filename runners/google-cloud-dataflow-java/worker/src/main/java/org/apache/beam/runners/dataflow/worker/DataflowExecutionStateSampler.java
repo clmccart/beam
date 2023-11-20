@@ -4,11 +4,14 @@ import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.metrics.ExecutionStateSampler;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.DataflowExecutionStateTracker;
 import org.joda.time.DateTimeUtils.MillisProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
@@ -16,8 +19,8 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
   private static final DataflowExecutionStateSampler INSTANCE =
       new DataflowExecutionStateSampler(SYSTEM_MILLIS_PROVIDER);
 
-  private Map<String, Map<String, IntSummaryStatistics>> completedProcessingMetrics = new HashMap<>();
-  private Map<String, DataflowExecutionStateTracker> activeTrackersByWorkId = new HashMap<>();
+  private ConcurrentHashMap<String, Map<String, IntSummaryStatistics>> completedProcessingMetrics = new ConcurrentHashMap<>();
+  private ConcurrentHashMap<String, DataflowExecutionStateTracker> activeTrackersByWorkId = new ConcurrentHashMap<>();
 
   public static DataflowExecutionStateSampler instance() {
     return INSTANCE;
@@ -48,13 +51,17 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
       return;
     }
     DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+    LOG.info("CLAIRE TEST adding DFtracker with work item id: {}", dfTracker.getWorkItemId());
+
     this.activeTrackersByWorkId.put(dfTracker.getWorkItemId(), dfTracker);
   }
 
   @Override
-  public synchronized void removeTracker(ExecutionStateTracker tracker) {
+  public void removeTracker(ExecutionStateTracker tracker) {
     if (tracker instanceof DataflowExecutionContext.DataflowExecutionStateTracker) {
       DataflowExecutionStateTracker dfTracker = (DataflowExecutionStateTracker) tracker;
+      LOG.info("CLAIRE TEST removing DFtracker with work item id: {}", dfTracker.getWorkItemId());
+
       // TODO(clairemccarthy): make sure active message is done before.
       completedProcessingMetrics.put(dfTracker.getWorkItemId(),
           mergeStepStatsMaps(completedProcessingMetrics.getOrDefault(
@@ -67,19 +74,27 @@ public class DataflowExecutionStateSampler extends ExecutionStateSampler {
 
   @Nullable
   public ActiveMessageMetadata getActiveMessageMetadataForWorkId(String workId) {
+    LOG.info("CLAIRE TEST getting active message for work item id: {}", workId);
+
     if (activeTrackersByWorkId.containsKey(workId)) {
       return activeTrackersByWorkId.get(workId).getActiveMessageMetadata();
     }
     return null;
   }
 
+  private static final Logger LOG = LoggerFactory.getLogger(DataflowExecutionStateSampler.class);
+
   @Nullable
   public Map<String, IntSummaryStatistics> getProcessingDistributionsForWorkId(
       String workId) {
     if (!activeTrackersByWorkId.containsKey(workId)) {
       if (completedProcessingMetrics.containsKey(workId)) {
-        return completedProcessingMetrics.get(workId);
+        LOG.info("CLAIRE TEST completedProcessingMetrics contains work token {}", workId);
+        Map<String, IntSummaryStatistics> completedMetrics = completedProcessingMetrics.get(workId);
+        completedProcessingMetrics.remove(workId);
+        return completedMetrics;
       }
+      LOG.info("CLAIRE TEST completedProcessingMetrics DOES NOT contain work token {}", workId);
       return null;
     }
     DataflowExecutionStateTracker tracker = activeTrackersByWorkId.get(workId);
