@@ -38,6 +38,7 @@ import org.apache.beam.runners.dataflow.worker.DataflowExecutionContext.Dataflow
 import org.apache.beam.runners.dataflow.worker.DataflowOperationContext.DataflowExecutionState;
 import org.apache.beam.runners.dataflow.worker.counters.CounterFactory;
 import org.apache.beam.runners.dataflow.worker.counters.NameContext;
+import org.apache.beam.runners.dataflow.worker.logging.DataflowWorkerLoggingMDC;
 import org.apache.beam.runners.dataflow.worker.util.common.worker.ElementExecutionTracker;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.metrics.MetricsContainer;
@@ -246,7 +247,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
     private final ElementExecutionTracker elementExecutionTracker;
     private final DataflowOperationContext.DataflowExecutionState otherState;
     private final ContextActivationObserverRegistry contextActivationObserverRegistry;
-    private final String workItemId;
+    private String workItemId;
 
     /**
      * Metadata on the message whose processing is currently being managed by this tracker. If no
@@ -278,6 +279,7 @@ public abstract class DataflowExecutionContext<T extends DataflowStepContext> {
 
     @Override
     public Closeable activate() {
+      this.workItemId = DataflowWorkerLoggingMDC.getWorkId();
       Closer closer = Closer.create();
       try {
         closer.register(super.activate());
