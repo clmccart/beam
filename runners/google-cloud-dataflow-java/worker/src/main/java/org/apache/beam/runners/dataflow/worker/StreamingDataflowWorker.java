@@ -1059,10 +1059,10 @@ public class StreamingDataflowWorker {
           readOperation.receivers[0].addOutputCounter(
               counterName,
               new OutputObjectAndByteCounter(
-                      new IntrinsicMapTaskExecutorFactory.ElementByteSizeObservableCoder<>(
-                          readCoder),
-                      mapTaskExecutor.getOutputCounters(),
-                      nameContext)
+                  new IntrinsicMapTaskExecutorFactory.ElementByteSizeObservableCoder<>(
+                      readCoder),
+                  mapTaskExecutor.getOutputCounters(),
+                  nameContext)
                   .setSamplingPeriod(100)
                   .countBytes(counterName));
         }
