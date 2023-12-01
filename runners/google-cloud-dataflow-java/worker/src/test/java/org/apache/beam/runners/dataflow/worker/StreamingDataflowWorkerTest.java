@@ -3275,8 +3275,8 @@ public class StreamingDataflowWorkerTest {
     work.setState(Work.State.COMMITTING);
     clock.sleep(Duration.millis(60));
 
-    Iterator<LatencyAttribution> it = work.getLatencyAttributions(false,
-        "", DataflowExecutionStateSampler.instance()).iterator();
+    Iterator<LatencyAttribution> it =
+        work.getLatencyAttributions(false, "", DataflowExecutionStateSampler.instance()).iterator();
     assertTrue(it.hasNext());
     LatencyAttribution lat = it.next();
     assertSame(State.QUEUED, lat.getState());
@@ -3526,14 +3526,13 @@ public class StreamingDataflowWorkerTest {
     Map<Long, Windmill.WorkItemCommitRequest> result = server.waitForAndGetCommits(1);
     Windmill.WorkItemCommitRequest commit = result.get(0L);
 
-    Windmill.LatencyAttribution.Builder laBuilder = LatencyAttribution.newBuilder()
-        .setState(State.ACTIVE)
-        .setTotalDurationMillis(100);
+    Windmill.LatencyAttribution.Builder laBuilder =
+        LatencyAttribution.newBuilder().setState(State.ACTIVE).setTotalDurationMillis(100);
     for (LatencyAttribution la : commit.getPerWorkItemLatencyAttributionsList()) {
       if (la.getState() == State.ACTIVE) {
         assertThat(la.getActiveLatencyBreakdownCount(), equalTo(1));
-        assertThat(la.getActiveLatencyBreakdown(0).getUserStepName(),
-            equalTo(DEFAULT_PARDO_USER_NAME));
+        assertThat(
+            la.getActiveLatencyBreakdown(0).getUserStepName(), equalTo(DEFAULT_PARDO_USER_NAME));
         Assert.assertTrue(la.getActiveLatencyBreakdown(0).hasProcessingTimesDistribution());
         Assert.assertFalse(la.getActiveLatencyBreakdown(0).hasActiveMessageMetadata());
       }
@@ -3563,8 +3562,8 @@ public class StreamingDataflowWorkerTest {
     assertThat(server.numGetDataRequests(), greaterThan(0));
     Windmill.GetDataRequest heartbeat = server.getGetDataRequests().get(2);
 
-    for (LatencyAttribution la : heartbeat.getRequests(0).getRequests(0)
-        .getLatencyAttributionList()) {
+    for (LatencyAttribution la :
+        heartbeat.getRequests(0).getRequests(0).getLatencyAttributionList()) {
       if (la.getState() == State.ACTIVE) {
         assertTrue(la.getActiveLatencyBreakdownCount() > 0);
         assertTrue(la.getActiveLatencyBreakdown(0).hasActiveMessageMetadata());
