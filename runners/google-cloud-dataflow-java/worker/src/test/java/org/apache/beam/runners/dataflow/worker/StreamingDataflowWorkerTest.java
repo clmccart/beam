@@ -174,6 +174,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -3274,7 +3275,8 @@ public class StreamingDataflowWorkerTest {
     work.setState(Work.State.COMMITTING);
     clock.sleep(Duration.millis(60));
 
-    Iterator<LatencyAttribution> it = work.getLatencyAttributions().iterator();
+    Iterator<LatencyAttribution> it = work.getLatencyAttributions(false,
+        "", DataflowExecutionStateSampler.instance()).iterator();
     assertTrue(it.hasNext());
     LatencyAttribution lat = it.next();
     assertSame(State.QUEUED, lat.getState());
@@ -3503,6 +3505,41 @@ public class StreamingDataflowWorkerTest {
               .setTotalDurationMillis(1000)
               .build());
     }
+  }
+
+  @Test
+  public void testDoFnLatencyBreakdownsReportedOnCommit() throws Exception {
+    List<ParallelInstruction> instructions =
+        Arrays.asList(
+            makeSourceInstruction(StringUtf8Coder.of()),
+            makeDoFnInstruction(new SlowDoFn(), 0, StringUtf8Coder.of()),
+            makeSinkInstruction(StringUtf8Coder.of(), 0));
+
+    FakeWindmillServer server = new FakeWindmillServer(errorCollector);
+    StreamingDataflowWorkerOptions options = createTestingPipelineOptions(server);
+    options.setActiveWorkRefreshPeriodMillis(100);
+    StreamingDataflowWorker worker = makeWorker(instructions, options, true /* publishCounters */);
+    worker.start();
+
+    server.whenGetWorkCalled().thenReturn(makeInput(0, TimeUnit.MILLISECONDS.toMicros(0)));
+
+    Map<Long, Windmill.WorkItemCommitRequest> result = server.waitForAndGetCommits(1);
+    Windmill.WorkItemCommitRequest commit = result.get(0L);
+
+    Windmill.LatencyAttribution.Builder laBuilder = LatencyAttribution.newBuilder()
+        .setState(State.ACTIVE)
+        .setTotalDurationMillis(100);
+    for (LatencyAttribution la : commit.getPerWorkItemLatencyAttributionsList()) {
+      if (la.getState() == State.ACTIVE) {
+        assertThat(la.getActiveLatencyBreakdownCount(), equalTo(1));
+        assertThat(la.getActiveLatencyBreakdown(0).getUserStepName(),
+            equalTo(DEFAULT_PARDO_USER_NAME));
+        Assert.assertTrue(la.getActiveLatencyBreakdown(0).hasProcessingTimesDistribution());
+        Assert.assertFalse(la.getActiveLatencyBreakdown(0).hasActiveMessageMetadata());
+      }
+    }
+
+    worker.stop();
   }
 
   @Test
